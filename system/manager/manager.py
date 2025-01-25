@@ -68,6 +68,7 @@ def manager_init() -> None:
     ("ToyotaEnhancedBsm", "0"),
     ("ToyotaTSS2Long", "0"),
     ("AccelPersonality", str(custom.LongitudinalPlanSP.AccelerationPersonality.stock)),
+    ("ToyotaDriveMode", "0"),
   ]
 
   # device boot mode
