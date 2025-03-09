@@ -61,6 +61,12 @@ TogglesPanel::TogglesPanel(SettingsWindow *parent) : ListWidget(parent) {
       tr("idk something gas and brake"),
       "../assets/offroad/icon_blank.png",
     },
+	  {
+      "RainbowMode",
+      tr("Enable Tesla Rainbow Mode"),
+      tr("....."),
+      "../assets/offroad/icon_blank.png",
+    },
     {
       "DisengageOnAccelerator",
       tr("Disengage on Accelerator Pedal"),
@@ -365,7 +371,7 @@ void SettingsWindow::setCurrentPanel(int index, const QString &param) {
     if (param.endsWith("Panel")) {
       QString panelName = param;
       panelName.chop(5); // Remove "Panel" suffix
-      
+
       // Find the panel by name
       for (int i = 0; i < nav_btns->buttons().size(); i++) {
         bool panel_trimmed = false;
@@ -381,7 +387,7 @@ void SettingsWindow::setCurrentPanel(int index, const QString &param) {
       emit expandToggleDescription(param);
     }
   }
-  
+
   panel_widget->setCurrentIndex(index);
   nav_btns->buttons()[index]->setChecked(true);
 }
