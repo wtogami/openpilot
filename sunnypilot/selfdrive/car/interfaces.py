@@ -12,6 +12,7 @@ from opendbc.car.interfaces import CarInterfaceBase
 from opendbc.car.hyundai.radar_interface import RADAR_START_ADDR
 from opendbc.car.hyundai.values import HyundaiFlags, DBC as HYUNDAI_DBC
 from opendbc.sunnypilot.car.hyundai.values import HyundaiFlagsSP
+from opendbc.sunnypilot.car.toyota.values import ToyotaFlagsSP
 from openpilot.common.params import Params
 from openpilot.common.swaglog import cloudlog
 from openpilot.sunnypilot.selfdrive.controls.lib.nnlc.helpers import get_nn_model_path
@@ -46,6 +47,15 @@ def _initialize_neural_network_lateral_control(CP: structs.CarParams, CP_SP: str
   CP_SP.neuralNetworkLateralControl.model.name = nnlc_model_name
   CP_SP.neuralNetworkLateralControl.fuzzyFingerprint = not exact_match
 
+def _initialize_toyota_features(CP: structs.CarParams, CP_SP: structs.CarParamsSP, params: Params = None) -> None:
+  if params is None:
+    params = Params()
+
+  if CP.brand == 'toyota':
+    if params.get_bool("ToyotaEnhancedBsm"):
+      CP_SP.flags |= ToyotaFlagsSP.SP_ENHANCED_BSM.value
+    if params.get_bool("ToyotaAutoHold"):
+      CP_SP.flags |= ToyotaFlagsSP.SP_AUTO_BRAKE_HOLD.value
 
 def _initialize_radar_tracks(CP: structs.CarParams, CP_SP: structs.CarParamsSP, params: Params = None) -> None:
   if params is None:
@@ -64,6 +74,7 @@ def _initialize_radar_tracks(CP: structs.CarParams, CP_SP: structs.CarParamsSP, 
 def setup_interfaces(CP: structs.CarParams, CP_SP: structs.CarParamsSP, params: Params = None):
   _initialize_neural_network_lateral_control(CP, CP_SP, params)
   _initialize_radar_tracks(CP, CP_SP, params)
+  _initialize_toyota_features(CP, CP_SP, params)
 
 
 def _enable_radar_tracks(CP: structs.CarParams, CP_SP: structs.CarParamsSP, can_recv: CanRecvCallable,
