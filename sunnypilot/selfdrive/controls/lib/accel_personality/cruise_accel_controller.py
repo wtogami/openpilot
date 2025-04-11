@@ -18,13 +18,13 @@ class CruiseAccelController:
 
   def __init__(self):
     # Speed breakpoints (m/s)
-    self.speed_breakpoints = [0.,  .01,  .02,   .3,    1.]
+    self.speed_breakpoints =     [0.,     .3,     1.,    27,   40]
 
     # Minimum allowed accelerations (m/s²) corresponding to each speed breakpoint for different personalities
-    self.min_accel_vals_stock = [-1.0, -1.1, -1.2, -1.3, -1.4]
-    self.min_accel_vals_normal = [-1.1, -1.2, -1.3, -1.4, -1.5]  # New values for normal
-    self.min_accel_vals_eco = [-0.8, -0.9, -1.0, -1.1, -1.2]
-    self.min_accel_vals_sport = [-1.2, -1.3, -1.4, -1.5, -1.6]
+    self.min_accel_vals_stock =  [-0.0066, -0.03, -0.07, -0.6, -0.8]
+    self.min_accel_vals_normal = [-0.0064, -0.02, -0.06, -0.5, -0.7]
+    self.min_accel_vals_eco =    [-0.0062, -0.02, -0.05, -0.4, -0.6]
+    self.min_accel_vals_sport =  [-0.0068, -0.03, -0.08, -0.7, -0.9]
 
     # Default personality is stock
     self._personality = AccelPersonality.stock
