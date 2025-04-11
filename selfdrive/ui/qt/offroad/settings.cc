@@ -38,12 +38,6 @@ TogglesPanel::TogglesPanel(SettingsWindow *parent) : ListWidget(parent) {
       "../assets/offroad/icon_blank.png",
     },
     {
-      "FastTakeOff",
-      tr("Very fast prius"),
-      tr("When prius goes faster then sunnys car :) vroom"),
-      "../assets/offroad/icon_blank.png",
-    },
-    {
       "ToyotaAutoHold",
       tr("Toyota: Auto Brake Hold"),
       tr("umm auto brake hold?"),
