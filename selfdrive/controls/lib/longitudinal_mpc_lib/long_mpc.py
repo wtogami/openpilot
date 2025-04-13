@@ -10,7 +10,7 @@ from openpilot.common.swaglog import cloudlog
 from openpilot.selfdrive.modeld.constants import index_function
 from openpilot.selfdrive.controls.radard import _LEAD_ACCEL_TAU
 
-from openpilot.sunnypilot.selfdrive.controls.lib.accel_personality.cruise_accel_controller import CruiseAccelController
+from openpilot.sunnypilot.selfdrive.controls.lib.accel_personality.accel_controller import AccelController
 
 
 if __name__ == '__main__':  # generating code
@@ -58,7 +58,7 @@ FCW_IDXS = T_IDXS < 5.0
 T_DIFFS = np.diff(T_IDXS, prepend=[0.])
 COMFORT_BRAKE = 2.5
 STOP_DISTANCE = 6.0
-#CRUISE_MIN_ACCEL = -1.2
+CRUISE_MIN_ACCEL = -1.2
 CRUISE_MAX_ACCEL = 1.6
 
 def get_jerk_factor(personality=log.LongitudinalPersonality.standard):
@@ -67,18 +67,18 @@ def get_jerk_factor(personality=log.LongitudinalPersonality.standard):
   elif personality==log.LongitudinalPersonality.standard:
     return 1.0
   elif personality==log.LongitudinalPersonality.aggressive:
-    return 0.3
+    return 0.22
   else:
     raise NotImplementedError("Longitudinal personality not supported")
 
 
 def get_T_FOLLOW(personality=log.LongitudinalPersonality.standard):
   if personality==log.LongitudinalPersonality.relaxed:
-    return 1.80
+    return 1.70
   elif personality==log.LongitudinalPersonality.standard:
-    return 1.25
+    return 1.47
   elif personality==log.LongitudinalPersonality.aggressive:
-    return 1.10
+    return 1.05
   else:
     raise NotImplementedError("Longitudinal personality not supported")
 
@@ -231,7 +231,7 @@ class LongitudinalMpc:
     self.solver = AcadosOcpSolverCython(MODEL_NAME, ACADOS_SOLVER_TYPE, N)
     self.reset()
     self.source = SOURCES[2]
-    self.cruise_accel_ctrl = CruiseAccelController()
+    self.accel_controller = AccelController()
 
   def reset(self):
     # self.solver = AcadosOcpSolverCython(MODEL_NAME, ACADOS_SOLVER_TYPE, N)
@@ -336,7 +336,8 @@ class LongitudinalMpc:
     v_ego = self.x0[1]
     self.status = radarstate.leadOne.status or radarstate.leadTwo.status
 
-    a_cruise_min = self.cruise_accel_ctrl.get_min_accel(v_ego)
+    a_cruise_min = self.accel_controller._get_min_accel_for_speed(v_ego)
+
     lead_xv_0 = self.process_lead(radarstate.leadOne)
     lead_xv_1 = self.process_lead(radarstate.leadTwo)
 
