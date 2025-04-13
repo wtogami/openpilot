@@ -26,6 +26,7 @@ from openpilot.selfdrive.car.helpers import convert_carControlSP, convert_to_cap
 
 from openpilot.sunnypilot.mads.helpers import set_alternative_experience, set_car_specific_params
 from openpilot.sunnypilot.selfdrive.car import interfaces as sunnypilot_interfaces
+from opendbc.sunnypilot.car.toyota.values import ToyotaFlagsSP
 
 REPLAY = "REPLAY" in os.environ
 
@@ -122,11 +123,16 @@ class Car:
     # set alternative experiences from parameters
     disengage_on_accelerator = self.params.get_bool("DisengageOnAccelerator")
     sp_toyota_auto_brake_hold = self.params.get_bool("ToyotaAutoHold")
+    sp_toyota_enhanced_bsm = self.params.get_bool("ToyotaEnhancedBsm")
+
     self.CP.alternativeExperience = 0
     if not disengage_on_accelerator:
       self.CP.alternativeExperience |= ALTERNATIVE_EXPERIENCE.DISABLE_DISENGAGE_ON_GAS
     if sp_toyota_auto_brake_hold:
       self.CP.alternativeExperience |= ALTERNATIVE_EXPERIENCE.ALLOW_AEB
+      self.CP_SP.flags |= ToyotaFlagsSP.SP_AUTO_BRAKE_HOLD.value
+    if sp_toyota_enhanced_bsm:
+      self.CP_SP.flags |= ToyotaFlagsSP.SP_ENHANCED_BSM.value
 
 
     # mads
