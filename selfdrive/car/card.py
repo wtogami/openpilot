@@ -130,9 +130,9 @@ class Car:
       self.CP.alternativeExperience |= ALTERNATIVE_EXPERIENCE.DISABLE_DISENGAGE_ON_GAS
     if sp_toyota_auto_brake_hold:
       self.CP.alternativeExperience |= ALTERNATIVE_EXPERIENCE.ALLOW_AEB
-      self.CP_SP.flags |= ToyotaFlagsSP.SP_AUTO_BRAKE_HOLD.value
-    if sp_toyota_enhanced_bsm:
-      self.CP_SP.flags |= ToyotaFlagsSP.SP_ENHANCED_BSM.value
+      #self.CP_SP.flags |= ToyotaFlagsSP.SP_AUTO_BRAKE_HOLD.value
+    #if sp_toyota_enhanced_bsm:
+      #self.CP_SP.flags |= ToyotaFlagsSP.SP_ENHANCED_BSM.value
 
 
     # mads
