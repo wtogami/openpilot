@@ -41,8 +41,8 @@ SET_MODE_TIMEOUT = 10
 
 # Added for hysteresis
 MODE_HYSTERESIS = {
-  'acc_to_blended': 0.55,    # Threshold to switch to blended mode
-  'blended_to_acc': 0.4      # Threshold to switch back to acc mode
+  'acc_to_blended': 0.70,    # Threshold to switch to blended mode
+  'blended_to_acc': 0.45      # Threshold to switch back to acc mode
 }
 
 
