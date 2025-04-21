@@ -60,6 +60,9 @@ DeveloperPanel::DeveloperPanel(SettingsWindow *parent) : ListWidget(parent) {
   enableGithubRunner = new ParamControl("EnableGithubRunner", tr("Enable GitHub runner service"), tr("Enables or disables the github runner service."), "");
   addItem(enableGithubRunner);
 
+  dynamicJerk = new ParamControl("DynamicJerk", tr("Enable Dynamic Jerk Control"), tr("Enable toggle to allow system to dynamically adjust the jerk limits based on the current driving conditions. This can help improve comfort and performance."), "");
+  addItem(dynamicJerk);
+
   // error log button
   errorLogBtn = new ButtonControl(tr("Error Log"), tr("VIEW"), tr("View the error log for sunnypilot crashes."));
   connect(errorLogBtn, &ButtonControl::clicked, [=]() {
@@ -84,7 +87,7 @@ void DeveloperPanel::updateToggles(bool _offroad) {
      * - visible, and
      * - during onroad & offroad states
      */
-    if (btn != experimentalLongitudinalToggle) {
+    if (btn != experimentalLongitudinalToggle && btn != dynamicJerk) {
       btn->setEnabled(_offroad);
     }
   }
@@ -122,6 +125,7 @@ void DeveloperPanel::updateToggles(bool _offroad) {
 
   // Handle specific controls visibility for release branches
   enableGithubRunner->setVisible(!is_release);
+  dynamicJerk->setVisible(!is_release);
   errorLogBtn->setVisible(!is_release);
   joystickToggle->setVisible(!is_release);
 

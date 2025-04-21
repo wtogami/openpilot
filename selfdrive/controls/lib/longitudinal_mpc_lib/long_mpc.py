@@ -65,12 +65,33 @@ def get_jerk_factor(personality=log.LongitudinalPersonality.standard):
   if personality==log.LongitudinalPersonality.relaxed:
     return 1.0
   elif personality==log.LongitudinalPersonality.standard:
-    return 1.0
+    return 0.95
   elif personality==log.LongitudinalPersonality.aggressive:
-    return 0.22
+    return 0.90
   else:
     raise NotImplementedError("Longitudinal personality not supported")
 
+def get_dynamic_jerk_factor(personality=log.LongitudinalPersonality.standard, v_ego=None):
+  # Define speed breakpoints in m/s (0, 10, 20, 30, 40 m/s)
+  # These correspond to approximately 0, 22, 45, 67, 90 mph
+  BP_SPEEDS = [0.0, 10.0, 20.0, 30.0, 40.0]
+
+  # Define jerk factor values at each breakpoint for each personality
+  if personality == log.LongitudinalPersonality.relaxed:
+    BP_JERK_FACTORS = [0.75, 0.72, 0.70, 0.68, 0.66]
+  elif personality == log.LongitudinalPersonality.standard:
+    BP_JERK_FACTORS = [0.70, 0.67, 0.65, 0.63, 0.61]
+  elif personality == log.LongitudinalPersonality.aggressive:
+    BP_JERK_FACTORS = [0.65, 0.62, 0.60, 0.58, 0.56]
+  else:
+    raise NotImplementedError("Longitudinal personality not supported")
+
+  # If no speed provided, return the middle value
+  #if v_ego is None:
+  #  return BP_JERK_FACTORS[2]  # Middle breakpoint value
+
+  # Interpolate jerk factor based on current speed
+  return np.interp(v_ego, BP_SPEEDS, BP_JERK_FACTORS)
 
 def get_T_FOLLOW(personality=log.LongitudinalPersonality.standard):
   if personality==log.LongitudinalPersonality.relaxed:
@@ -278,8 +299,10 @@ class LongitudinalMpc:
     for i in range(N):
       self.solver.cost_set(i, 'Zl', Zl)
 
-  def set_weights(self, prev_accel_constraint=True, personality=log.LongitudinalPersonality.standard):
-    jerk_factor = get_jerk_factor(personality)
+  def set_weights(self, prev_accel_constraint=True, personality=log.LongitudinalPersonality.standard, dynamic_jerk=False):
+    v_ego = self.x0[1]
+    jerk_factor = get_dynamic_jerk_factor(personality, v_ego) if dynamic_jerk else get_jerk_factor(personality)
+    print(jerk_factor)
     if self.mode == 'acc':
       a_change_cost = A_CHANGE_COST if prev_accel_constraint else 0
       cost_weights = [X_EGO_OBSTACLE_COST, X_EGO_COST, V_EGO_COST, A_EGO_COST, jerk_factor * a_change_cost, jerk_factor * J_EGO_COST]
