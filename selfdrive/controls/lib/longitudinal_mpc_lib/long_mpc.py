@@ -67,7 +67,7 @@ def get_jerk_factor(personality=log.LongitudinalPersonality.standard):
   elif personality==log.LongitudinalPersonality.standard:
     return 1.0
   elif personality==log.LongitudinalPersonality.aggressive:
-    return 0.22
+    return 0.5
   else:
     raise NotImplementedError("Longitudinal personality not supported")
 
@@ -81,6 +81,31 @@ def get_T_FOLLOW(personality=log.LongitudinalPersonality.standard):
     return 1.05
   else:
     raise NotImplementedError("Longitudinal personality not supported")
+
+def get_dynamic_personality(v_ego, personality=log.LongitudinalPersonality.standard):
+  if personality==log.LongitudinalPersonality.relaxed:
+    x_vel =  [0.,   19.7,  19.71,  36.1]
+    y_dist = [1.65, 1.65,  1.80,   1.80]
+    #x_vel =  [0.,  36.1]
+    #y_dist = [1.5, 1.80]
+  elif personality==log.LongitudinalPersonality.standard:
+    x_vel =  [0.,   19.7, 19.71,  36.1]
+    y_dist = [1.45, 1.45,  1.55,   1.55]
+    #x_vel =  [0.,  36.1]
+    #y_dist = [1.3, 1.50]
+  elif personality==log.LongitudinalPersonality.aggressive:
+    x_vel =  [0.,   19.7,  19.71,  36.1]
+    y_dist = [1.10, 1.10,  1.25,   1.25]
+    #x_vel =  [0.,  36.1]
+    #y_dist = [1.05, 1.25]
+  else:
+    raise NotImplementedError("Dynamic personality not supported")
+
+  # Ensure we don't exceed the maximum of our defined range
+  v_ego = min(v_ego, max(x_vel))
+
+  # Use numpy interpolation for smooth transitions between points
+  return np.interp(v_ego, x_vel, y_dist)
 
 def get_stopped_equivalence_factor(v_lead):
   return (v_lead**2) / (2 * COMFORT_BRAKE)
@@ -331,9 +356,10 @@ class LongitudinalMpc:
     lead_xv = self.extrapolate_lead(x_lead, v_lead, a_lead, a_lead_tau)
     return lead_xv
 
-  def update(self, radarstate, v_cruise, x, v, a, j, personality=log.LongitudinalPersonality.standard):
-    t_follow = get_T_FOLLOW(personality)
+  def update(self, radarstate, v_cruise, x, v, a, j, personality=log.LongitudinalPersonality.standard, dynamic_personality=False):
     v_ego = self.x0[1]
+    t_follow = get_dynamic_personality(v_ego, personality) if dynamic_personality else get_T_FOLLOW(personality)
+    print("LongitudinalMpc update: v_ego: {}, t_follow: {}, mode: {}".format(v_ego, t_follow, self.mode))
     self.status = radarstate.leadOne.status or radarstate.leadTwo.status
 
     a_cruise_min = self.accel_controller._get_min_accel_for_speed(v_ego)
