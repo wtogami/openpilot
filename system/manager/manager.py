@@ -60,6 +60,7 @@ def manager_init() -> None:
     ("ToyotaTSS2Long", "0"),
     ("AccelPersonality", str(custom.LongitudinalPlanSP.AccelerationPersonality.stock)),
     ("ToyotaDriveMode", "0"),
+    ("DynamicPersonality", "0"),
   ]
 
   if params.get_bool("RecordFrontLock"):
