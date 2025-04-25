@@ -97,7 +97,7 @@ def get_dynamic_personality(v_ego, personality=log.LongitudinalPersonality.stand
     #x_vel =  [0.,   19.7,  19.71,  36.1]
     #y_dist = [1.10, 1.10,  1.25,   1.25]
     x_vel =  [0.,   10.,  13.,  40]
-    y_dist = [1.1,  1.1,  1.1,  1.30]
+    y_dist = [1.0,  1.0,  1.0,  1.30]
   else:
     raise NotImplementedError("Dynamic personality not supported")
 

@@ -11,3 +11,5 @@ if [ -z "$AGNOS_VERSION" ]; then
 fi
 
 export STAGING_ROOT="/data/safe_staging"
+# SP: Install Python dependencies for accel controller
+pip install scipy
