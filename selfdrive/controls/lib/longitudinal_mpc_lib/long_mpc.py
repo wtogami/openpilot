@@ -11,6 +11,7 @@ from openpilot.selfdrive.modeld.constants import index_function
 from openpilot.selfdrive.controls.radard import _LEAD_ACCEL_TAU
 
 from openpilot.sunnypilot.selfdrive.controls.lib.accel_personality.accel_controller import AccelController
+from openpilot.sunnypilot.selfdrive.controls.lib.dynamic_personality.dynamic_personality_controller import DynamicPersonalityController
 
 
 if __name__ == '__main__':  # generating code
@@ -81,31 +82,6 @@ def get_T_FOLLOW(personality=log.LongitudinalPersonality.standard):
     return 1.05
   else:
     raise NotImplementedError("Longitudinal personality not supported")
-
-def get_dynamic_personality(v_ego, personality=log.LongitudinalPersonality.standard):
-  if personality==log.LongitudinalPersonality.relaxed:
-    x_vel =  [0.,   19.7,  19.71,  36.1]
-    y_dist = [1.65, 1.65,  1.80,   1.80]
-    #x_vel =  [0.,  36.1]
-    #y_dist = [1.5, 1.80]
-  elif personality==log.LongitudinalPersonality.standard:
-    x_vel =  [0.,   19.7, 19.71,  36.1]
-    y_dist = [1.45, 1.45,  1.55,   1.55]
-    #x_vel =  [0.,  36.1]
-    #y_dist = [1.3, 1.50]
-  elif personality==log.LongitudinalPersonality.aggressive:
-    x_vel =  [0.,   19.7,  19.71,  36.1]
-    y_dist = [1.10, 1.10,  1.25,   1.25]
-    #x_vel =  [0.,  36.1]
-    #y_dist = [1.05, 1.25]
-  else:
-    raise NotImplementedError("Dynamic personality not supported")
-
-  # Ensure we don't exceed the maximum of our defined range
-  v_ego = min(v_ego, max(x_vel))
-
-  # Use numpy interpolation for smooth transitions between points
-  return np.interp(v_ego, x_vel, y_dist)
 
 def get_stopped_equivalence_factor(v_lead):
   return (v_lead**2) / (2 * COMFORT_BRAKE)
@@ -257,6 +233,7 @@ class LongitudinalMpc:
     self.reset()
     self.source = SOURCES[2]
     self.accel_controller = AccelController()
+    self.dynamic_personality_controller = DynamicPersonalityController()
 
   def reset(self):
     # self.solver = AcadosOcpSolverCython(MODEL_NAME, ACADOS_SOLVER_TYPE, N)
@@ -358,8 +335,7 @@ class LongitudinalMpc:
 
   def update(self, radarstate, v_cruise, x, v, a, j, personality=log.LongitudinalPersonality.standard, dynamic_personality=False):
     v_ego = self.x0[1]
-    t_follow = get_dynamic_personality(v_ego, personality) if dynamic_personality else get_T_FOLLOW(personality)
-    print("LongitudinalMpc update: v_ego: {}, t_follow: {}, mode: {}".format(v_ego, t_follow, self.mode))
+    t_follow = self.dynamic_personality_controller.get_dynamic_follow_distance(v_ego, personality) if dynamic_personality else get_T_FOLLOW(personality)
     self.status = radarstate.leadOne.status or radarstate.leadTwo.status
 
     a_cruise_min = self.accel_controller._get_min_accel_for_speed(v_ego)
