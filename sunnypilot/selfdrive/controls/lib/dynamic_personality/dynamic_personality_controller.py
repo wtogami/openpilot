@@ -23,17 +23,14 @@ class DynamicPersonalityController:
         float: The calculated follow distance factor
     """
     if personality == log.LongitudinalPersonality.relaxed:
-      x_vel =  [0.,  40]
-      y_dist = [1.25, 1.75]
-      personality_name = "relaxed"
+      x_vel =  [0., 8,  40]
+      y_dist = [1.25, 1.25, 1.75]
     elif personality == log.LongitudinalPersonality.standard:
-      x_vel =  [0.,  40]
-      y_dist = [1.20, 1.50]
-      personality_name = "standard"
+      x_vel =  [0.,  8.,  40]
+      y_dist = [1.20, 1.20, 1.50]
     elif personality == log.LongitudinalPersonality.aggressive:
-      x_vel =  [0.,  40]
-      y_dist = [1.15,  1.25]
-      personality_name = "aggressive"
+      x_vel =  [0.,  5.,  13.,  40]
+      y_dist = [1.18, 1.18, 1.15, 1.25]
     else:
       raise NotImplementedError("Dynamic personality not supported")
 
@@ -45,6 +42,6 @@ class DynamicPersonalityController:
     result = float(cs(v_ego))
 
     # Add print statement
-    print(f"DynamicPersonalityController: v_ego: {v_ego:.2f}, personality: {personality_name}, follow distance: {result:.2f}")
+    #print(f"DynamicPersonalityController: v_ego: {v_ego:.2f}, personality: {personality_name}, follow distance: {result:.2f}")
 
     return result
