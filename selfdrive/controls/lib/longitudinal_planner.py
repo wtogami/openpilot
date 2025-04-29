@@ -134,21 +134,20 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     prev_accel_constraint = not (reset_state or sm['carState'].standstill)
 
     if self.mode == 'acc':
-      accel_clip = [ACCEL_MIN, get_max_accel(v_ego)]
-      steer_angle_without_offset = sm['carState'].steeringAngleDeg - sm['liveParameters'].angleOffsetDeg
-      accel_clip = limit_accel_in_turns(v_ego, steer_angle_without_offset, accel_clip, self.CP)
-    else:
-      accel_clip = [ACCEL_MIN, ACCEL_MAX]
-
-    # Override accel using Accel Controller if enabled
-    if self.accel_controller.is_personality_enabled:
-      max_limit = self.accel_controller._get_max_accel_for_speed(v_ego)
-      if self.mpc.mode == 'acc':
-        # Use the accel controller limits directly
+      if self.accel_controller.is_personality_enabled:
+        max_limit = self.accel_controller._get_max_accel_for_speed(v_ego)
+        #min_limit = self.accel_controller._get_min_accel_for_speed(v_ego)
         accel_clip = [ACCEL_MIN, max_limit]
+        print(f"accel_clip: {accel_clip}")
         # Recalculate limit turn according to the new max limit
         steer_angle_without_offset = sm['carState'].steeringAngleDeg - sm['liveParameters'].angleOffsetDeg
         accel_clip = limit_accel_in_turns(v_ego, steer_angle_without_offset, accel_clip, self.CP)
+      else:
+        accel_clip = [ACCEL_MIN, get_max_accel(v_ego)]
+        steer_angle_without_offset = sm['carState'].steeringAngleDeg - sm['liveParameters'].angleOffsetDeg
+        accel_clip = limit_accel_in_turns(v_ego, steer_angle_without_offset, accel_clip, self.CP)
+    else:
+      accel_clip = [ACCEL_MIN, ACCEL_MAX]
 
     if reset_state:
       self.v_desired_filter.x = v_ego
