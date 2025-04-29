@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import math
 import numpy as np
-from openpilot.common.params import Params
+
 import cereal.messaging as messaging
 from opendbc.car.interfaces import ACCEL_MIN, ACCEL_MAX
 from openpilot.common.conversions import Conversions as CV
@@ -71,19 +71,6 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
     self.a_desired_trajectory = np.zeros(CONTROL_N)
     self.j_desired_trajectory = np.zeros(CONTROL_N)
     self.solverExecutionTime = 0.0
-
-    self.params = Params()
-    self.param_read_counter = 0
-    self.read_param()
-
-    self.dynamic_jerk = False
-
-
-  def read_param(self):
-    try:
-      self.dynamic_jerk = self.params.get_bool("DynamicJerk")
-    except AttributeError:
-      pass
 
   @staticmethod
   def parse_model(model_msg, model_error):
@@ -172,8 +159,8 @@ class LongitudinalPlanner(LongitudinalPlannerSP):
 
     if force_slow_decel:
       v_cruise = 0.0
-    #print("++++++++ DYNAMIC JERK_________ status:", self.dynamic_jerk)
-    self.mpc.set_weights(prev_accel_constraint, personality=sm['selfdriveState'].personality, dynamic_jerk = self.dynamic_jerk)
+
+    self.mpc.set_weights(prev_accel_constraint, personality=sm['selfdriveState'].personality)
     self.mpc.set_cur_state(self.v_desired_filter.x, self.a_desired)
     self.mpc.update(sm['radarState'], v_cruise, x, v, a, j, personality=sm['selfdriveState'].personality)
 
