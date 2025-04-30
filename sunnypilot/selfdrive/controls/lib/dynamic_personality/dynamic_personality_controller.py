@@ -58,8 +58,8 @@ class DynamicPersonalityController:
       x_vel =  [0., 8., 40.]
       y_dist = [1.20, 1.20, 1.50]
     elif personality == log.LongitudinalPersonality.aggressive:
-      x_vel =  [0., 5., 13., 40.]
-      y_dist = [1.18, 1.18, 1.15, 1.25]
+      x_vel =  [0., 5.,   13.,   25., 40.]
+      y_dist = [1.0, 1.21, 1.20, 1.30, 1.30]
     else:
       raise NotImplementedError("Dynamic personality not supported")
 
