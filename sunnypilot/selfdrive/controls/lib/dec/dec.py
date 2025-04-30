@@ -186,11 +186,18 @@ class DynamicExperimentalController:
       self._set_mode_timeout = 0
       return
 
-    if self._set_mode_timeout == 0:
-      self._mode = mode
-      if mode == 'blended':
-        self._set_mode_timeout = SET_MODE_TIMEOUT
+    # always allow immediate switch to 'acc'
+    if mode == 'acc':
+      self._mode = 'acc'
+      self._set_mode_timeout = 0
+      return
 
+    # if switching to 'blended', enforce timeout
+    if self._mode != 'blended' and mode == 'blended':
+      self._mode = 'blended'
+      self._set_mode_timeout = SET_MODE_TIMEOUT
+
+    # countdown the timeout
     if self._set_mode_timeout > 0:
       self._set_mode_timeout -= 1
 
