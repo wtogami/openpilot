@@ -84,9 +84,6 @@ class DynamicExperimentalController:
     self._has_standstill = False
     self._set_mode_timeout = 0
 
-    self._lead_moved_after_stop = False
-    self._was_lead_stopped = False
-
   def _read_params(self) -> None:
     if self._frame % int(1. / DT_MDL) == 0:
       self._enabled = self._params.get_bool("DynamicExperimentalControl")
@@ -128,15 +125,6 @@ class DynamicExperimentalController:
 
     # keep prev value for lead filtered
     self._has_lead_filtered_prev = self._has_lead_filtered
-
-    #detect lead movement after standstill
-    if lead_one.status:
-      lead_v = lead_one.vLead  # lead speed in m/s
-      self._lead_moved_after_stop = self._has_standstill and self._was_lead_stopped and lead_v > 0.3
-      self._was_lead_stopped = lead_v < 0.1
-    else:
-      self._lead_moved_after_stop = False
-      self._was_lead_stopped = False
 
   def _radarless_mode(self) -> None:
     # when standstill: blended
@@ -180,12 +168,6 @@ class DynamicExperimentalController:
     self._set_mode('acc')
 
   def _set_mode(self, mode: str) -> None:
-    # override blended if lead moved
-    if self._lead_moved_after_stop and mode == 'blended':
-      self._mode = 'acc'
-      self._set_mode_timeout = 0
-      return
-
     if self._set_mode_timeout == 0:
       self._mode = mode
       if mode == 'blended':
