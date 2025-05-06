@@ -27,6 +27,8 @@ MIN_ACCEL_BREAKPOINTS = [0.,  3.,   5.,   14.,  20., 40.]
 # Precompute slopes for Cubic Bézier curves
 def compute_symmetric_slopes(x, y):
   n = len(x)
+  if n < 2:
+    raise ValueError("At least two points are required to compute slopes.")
   m = np.zeros(n)
   for i in range(n):
     if i == 0:
@@ -59,7 +61,7 @@ def hermite_interpolate(x, xp, yp, slopes, mode):
 
   x0, x1 = xp[idx], xp[idx+1]
   y0, y1 = yp[idx], yp[idx+1]
-  m0, m1 = slopes[mode][idx], slopes[mode][idx]
+  m0, m1 = slopes[mode][idx], slopes[mode][idx+1]
 
   t = (x - x0) / (x1 - x0)
   h00 = 2*t**3 - 3*t**2 + 1
