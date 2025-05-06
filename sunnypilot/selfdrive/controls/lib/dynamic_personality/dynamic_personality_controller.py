@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+
 from cereal import log
 import numpy as np
 
@@ -13,6 +13,9 @@ class DynamicPersonalityController:
 
   def compute_symmetric_slopes(self, x, y):
     n = len(x)
+    if n < 2:
+      raise ValueError("At least two points are required to compute slopes.")
+
     m = np.zeros(n)
     for i in range(n):
       if i == 0:
