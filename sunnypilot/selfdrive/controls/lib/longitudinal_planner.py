@@ -9,7 +9,7 @@ from cereal import messaging, custom
 from opendbc.car import structs
 from openpilot.sunnypilot.models.helpers import get_active_model_runner
 from openpilot.sunnypilot.selfdrive.controls.lib.dec.dec import DynamicExperimentalController
-
+from openpilot.sunnypilot.selfdrive.controls.lib.accel_personality.accel_controller import AccelController
 DecState = custom.LongitudinalPlanSP.DynamicExperimentalControl.DynamicExperimentalControlState
 
 
@@ -17,6 +17,7 @@ class LongitudinalPlannerSP:
   def __init__(self, CP: structs.CarParams, mpc):
     self.dec = DynamicExperimentalController(CP, mpc)
     self.is_stock = get_active_model_runner() == custom.ModelManagerSP.Runner.stock
+    self.accel_controller = AccelController()
 
   def get_mpc_mode(self) -> str | None:
     if not self.dec.active():
@@ -26,6 +27,7 @@ class LongitudinalPlannerSP:
 
   def update(self, sm: messaging.SubMaster) -> None:
     self.dec.update(sm)
+    self.accel_controller.update()
 
   def publish_longitudinal_plan_sp(self, sm: messaging.SubMaster, pm: messaging.PubMaster) -> None:
     plan_sp_send = messaging.new_message('longitudinalPlanSP')

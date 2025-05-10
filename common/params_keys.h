@@ -177,6 +177,14 @@ inline static std::unordered_map<std::string, uint32_t> keys = {
     {"HkgTuningAngleMinTorque", PERSISTENT | BACKUP},
     {"HkgTuningAngleMaxTorque", PERSISTENT | BACKUP},
     {"HkgTuningOverridingCycles", PERSISTENT | BACKUP},
-    {"HkgAngleLiveTuning", PERSISTENT | BACKUP}
-    
+    {"HkgAngleLiveTuning", PERSISTENT | BACKUP},
+
+    // toyota specific params
+    {"ToyotaAutoHold", PERSISTENT},
+    {"ToyotaEnhancedBsm", PERSISTENT},
+    {"ToyotaTSS2Long", PERSISTENT},
+    {"RainbowMode", PERSISTENT},
+    {"AccelPersonality", PERSISTENT},
+    {"ToyotaDriveMode", PERSISTENT},
+    {"DynamicPersonality", PERSISTENT},
 };
