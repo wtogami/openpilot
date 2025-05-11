@@ -55,14 +55,14 @@ class DynamicPersonalityController:
         float: The calculated follow distance factor
     """
     if personality == log.LongitudinalPersonality.relaxed:
-      x_vel =  [0., 2.5,  5.,   19.7,   22.2, 40.]
-      y_dist = [1.25, 1.25, 1.3, 1.3, 1.75, 1.75]
+      x_vel =  [0.,  11.1, 13., 19.7, 22.2, 25.0, 40.]
+      y_dist = [1.25, 1.25, 1.40, 1.40, 1.60, 1.60, 1.75]
     elif personality == log.LongitudinalPersonality.standard:
-      x_vel =  [0., 2.5,  5.,   19.7,   22.2, 40.]
-      y_dist = [1.20, 1.20, 1.275, 1.275, 1.50, 1.50]
+      x_vel =  [0.,   6.,   7.,   14.,  16., 19.7, 22.2, 25.0, 40.]
+      y_dist = [1.15, 1.15, 1.25, 1.25, 1.35, 1.35, 1.45, 1.45, 1.50]
     elif personality == log.LongitudinalPersonality.aggressive:
-      x_vel =  [0., 2.5,  3.0,   19.7,   22.2, 40.]
-      y_dist = [0.92, 0.9, 1.15, 1.20, 1.35, 1.35]
+      x_vel =  [0.,   6.,   7.,   14.,  16., 19.7, 22.2, 25.0, 40.]
+      y_dist = [1.05, 1.05, 1.15, 1.15, 1.20, 1.20, 1.25, 1.25, 1.35]
     else:
       raise NotImplementedError("Dynamic personality not supported")
 
