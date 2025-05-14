@@ -346,30 +346,30 @@ class DynamicExperimentalController:
     # Advanced radar mode decision logic
     if self._has_lead_filtered:
       # Lead vehicle detected
-      if self._has_standstill:
-        # Vehicle is stopped
-        self._set_mode('blended')
-        return
+    #  if self._has_standstill:
+    #    # Vehicle is stopped
+    #    self._set_mode('blended')
+    #    return
 
       # Check for rapid deceleration of lead vehicle
-      if self._lead_accel < -2.0:
+    #  if self._lead_accel < -2.0:
         # Lead is braking hard, use blended mode for better response
-        self._set_mode('blended')
-        return
+    #    self._set_mode('blended')
+    #    return
 
       # Check distance-based conditions
-      if self._lead_dist < 30.0:
+    #  if self._lead_dist < 30.0:
         # Lead is closer than 30m
-        if self._lead_rel_vel < -1.0:
+    #    if self._lead_rel_vel < -1.0:
           # Lead is getting closer, use blended for more responsive braking
-          self._set_mode('blended')
-          return
+    #      self._set_mode('blended')
+    #      return
 
         # Lead is close but not getting closer significantly
         # Use acc for smooth following
-        self._set_mode('acc')
-        return
-      else:
+    #    self._set_mode('acc')
+    #    return
+    #  else:
         # Lead is far away, use normal acc behavior
         self._set_mode('acc')
         return
