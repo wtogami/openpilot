@@ -56,6 +56,7 @@ class ModelParser:
     model_bundle.runner = bundle.get("runner", custom.ModelManagerSP.Runner.snpe)
     model_bundle.is20hz = bundle.get("is_20hz", False)
     model_bundle.minimumSelectorVersion = int(bundle["minimum_selector_version"])
+    model_bundle.overrides = bundle.get("overrides")
 
     return model_bundle
 
