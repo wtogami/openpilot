@@ -3,7 +3,7 @@ class WMACConstants:
   LEAD_PROB = 0.45
 
   SLOW_DOWN_WINDOW_SIZE = 5
-  SLOW_DOWN_PROB = 0.6
+  SLOW_DOWN_PROB = 0.66
 
   SLOW_DOWN_BP = [0., 10., 20., 30., 40., 50., 55., 60.]
   SLOW_DOWN_DIST = [32., 46., 64., 86., 108., 130., 145., 165.]
