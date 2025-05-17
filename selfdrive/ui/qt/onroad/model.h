@@ -61,4 +61,6 @@ protected:
   QRectF clip_region;
   QPolygonF left_blindspot_vertices;
   QPolygonF right_blindspot_vertices;
+  float hysteretic_x = 0.0f;
+  const float hysteresis_factor = 0.15f;
 };
