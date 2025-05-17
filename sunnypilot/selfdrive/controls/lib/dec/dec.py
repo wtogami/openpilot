@@ -120,6 +120,7 @@ class DynamicExperimentalController:
     self._active: bool = False
     self._mode: str = 'acc'
     self._frame: int = 0
+    self._urgency = 0.0
 
     # Using Kalman filters for improved filtering
 
@@ -289,21 +290,25 @@ class DynamicExperimentalController:
       interp(self._v_ego_kph, WMACConstants.SLOW_DOWN_BP, WMACConstants.SLOW_DOWN_DIST)
     )
 
-    # Check if path prediction shows slowing is needed
-    # We now incorporate both curvature and endpoint distance
-    slow_down_trigger = False
-
-    # Check trajectory endpoint
+    curv_score = np.clip(self._curvature / 0.1, 0.0, 1.0)
+    endpt_score = 0.0
     if len(md.orientation.x) == len(md.position.x) == TRAJECTORY_SIZE:
-      endpoint_trigger = md.position.x[TRAJECTORY_SIZE - 1] < slow_down_threshold
+      endpoint_x = md.position.x[TRAJECTORY_SIZE - 1]
+      endpt_score = np.clip((slow_down_threshold - endpoint_x) / 10.0, 0.0, 1.0)
 
-      # Combine with curvature detection for more comprehensive assessment
-      slow_down_trigger = endpoint_trigger or self._high_curvature
+    # Combine urgency from curvature + endpoint
+    urgency = max(curv_score, endpt_score)
 
     # Apply Kalman filtering to slow down detection
-    self._slow_down_filter.add_data(float(slow_down_trigger))
-    slow_down_filtered_value = self._slow_down_filter.get_value() or 0.0
-    self._has_slow_down = slow_down_filtered_value > WMACConstants.SLOW_DOWN_PROB
+    self._slow_down_filter.add_data(urgency)
+    urgency_filtered = self._slow_down_filter.get_value() or 0.0
+
+    # Final decision using probabilistic threshold
+    self._has_slow_down = urgency_filtered > WMACConstants.SLOW_DOWN_PROB
+
+    # use it for debug
+    self._urgency = urgency_filtered
+
 
     # Slowness detection with Kalman filtering
     if not self._has_standstill:
