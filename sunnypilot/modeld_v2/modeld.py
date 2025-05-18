@@ -50,8 +50,10 @@ class ModelState:
       cloudlog.exception(f"Failed to initialize model runner: {str(e)}")
       raise
 
-    bundle = get_active_bundle()
-    overrides = bundle.overrides
+    model_bundle = get_active_bundle()
+    self.generation = model_bundle.generation
+    overrides = model_bundle.overrides
+
     self.LAT_SMOOTH_SECONDS = overrides.lat
     self.LONG_SMOOTH_SECONDS = overrides.long
     self.MIN_LAT_CONTROL_SPEED = 0.3
@@ -151,7 +153,9 @@ class ModelState:
     if self.model_runner.is_20hz_3d:  # split models
       self.full_prev_desired_curv[0,:-1] = self.full_prev_desired_curv[0,1:]
       self.full_prev_desired_curv[0,-1,:] = outputs['desired_curvature'][0, :]
-      self.numpy_inputs['prev_desired_curv'][:] = 0*self.full_prev_desired_curv[0, self.temporal_idxs]
+      self.numpy_inputs[input_name_prev][:] = self.full_prev_desired_curv[0, self.temporal_idxs]
+      if self.generation == 11:
+        self.numpy_inputs[input_name_prev][:] = 0*self.full_prev_desired_curv[0, self.temporal_idxs]
     else:
       length = outputs['desired_curvature'][0].size
       self.numpy_inputs[input_name_prev][0, :-length, 0] = self.numpy_inputs[input_name_prev][0, length:, 0]
@@ -163,6 +167,7 @@ class ModelState:
     desired_accel, should_stop = get_accel_from_plan(plan[:, Plan.VELOCITY][:, 0], plan[:, Plan.ACCELERATION][:, 0], ModelConstants.T_IDXS,
                                                      action_t=long_action_t)
     desired_accel = smooth_value(desired_accel, prev_action.desiredAcceleration, self.LONG_SMOOTH_SECONDS)
+
     desired_curvature = get_curvature_from_output(model_output, v_ego, lat_action_t)
     if v_ego > self.MIN_LAT_CONTROL_SPEED:
       desired_curvature = smooth_value(desired_curvature, prev_action.desiredCurvature, self.LAT_SMOOTH_SECONDS)
