@@ -62,3 +62,9 @@ DeviceSP *deviceSP() {
   static DeviceSP _device;
   return &_device;
 }
+void DeviceSP::handleDisplayPowerChanged(bool on) {
+  // if enabled, trigger offroad mode when device goes to sleep
+  if (params.get("DeviceBootMode") == "1" && not on) {
+    params.putBool("OffroadMode", true);
+  }
+}

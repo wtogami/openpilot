@@ -44,6 +44,7 @@ def manager_init() -> None:
   sunnypilot_default_params: list[tuple[str, str | bytes]] = [
     ("AutoLaneChangeTimer", "0"),
     ("AutoLaneChangeBsmDelay", "0"),
+    ("DeviceBootMode", "0"),
     ("CustomAccIncrementsEnabled", "0"),
     ("CustomAccLongPressIncrement", "5"),
     ("CustomAccShortPressIncrement", "1"),
@@ -65,6 +66,10 @@ def manager_init() -> None:
     ("ToyotaDriveMode", "0"),
     ("DynamicPersonality", "0"),
   ]
+
+  # device boot mode
+  if params.get("DeviceBootMode") == b"1": # start in always offroad mode
+    params.put_bool("OffroadMode", True)
 
   if params.get_bool("RecordFrontLock"):
     params.put_bool("RecordFront", True)
