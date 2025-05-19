@@ -485,7 +485,7 @@ public:
       }
     )";
 
-    if (inline_layout) {
+    if (is_inline_layout) {
       optionSelectorLayout->setMargin(0);
       optionSelectorLayout->setSpacing(0);
       if (!title.isEmpty()) {
@@ -499,7 +499,7 @@ public:
     }
 
     label.setStyleSheet(label_enabled_style);
-    label.setFixedWidth(inline_layout ? 350 : 300);
+    label.setFixedWidth(is_inline_layout ? 350 : 300);
     label.setAlignment(Qt::AlignCenter);
 
     const std::vector<QString> button_texts{"－", "＋"};
