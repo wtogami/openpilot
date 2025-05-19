@@ -78,11 +78,6 @@ struct ModelManagerSP @0xaedffd8f31e7b55d {
     stock @2;
   }
 
-  struct Overrides {
-    lat @0 :Float32;
-    long @1 :Float32;
-  }
-
   struct ModelBundle {
     index @0 :UInt32;
     internalName @1 :Text;
@@ -93,9 +88,8 @@ struct ModelManagerSP @0xaedffd8f31e7b55d {
     environment @6 :Text;
     runner @7 :Runner;
     is20hz @8 :Bool;
-    ref @9 :Text;
+    ref @9 :Text;  # New field
     minimumSelectorVersion @10 :UInt32;
-    overrides @11 :Overrides;
   }
 }
 
