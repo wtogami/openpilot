@@ -65,6 +65,10 @@ def manager_init() -> None:
     ("AccelPersonality", str(custom.LongitudinalPlanSP.AccelerationPersonality.stock)),
     ("ToyotaDriveMode", "0"),
     ("DynamicPersonality", "0"),
+    ("HkgTuningAngleSmoothingFactor", "0"),
+    ("HkgTuningAngleMinTorque", "25"),
+    ("HkgTuningAngleMaxTorque", "250"),
+    ("HkgTuningOverridingCycles", "17"),
   ]
 
   # device boot mode
