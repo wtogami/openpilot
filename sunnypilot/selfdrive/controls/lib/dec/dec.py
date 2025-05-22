@@ -122,15 +122,21 @@ class DynamicExperimentalController:
     self._frame: int = 0
     self._urgency = 0.0
 
+    # Add smooth transition variables
+    self._mode_confidence = 0.0  # 0.0 = acc, 1.0 = blended
+    self._mode_transition_rate = 0.05  # How fast to transition between modes
+    self._mode_hysteresis = 0.1  # Hysteresis band to prevent oscillation
+    self._prev_mode_decision = 'acc'
+
     # Using Kalman filters for improved filtering
 
     # Lead vehicle tracking - calibrated to match LEAD_WINDOW_SIZE=7
     self._lead_filter = KalmanFilter(
       initial_value=0,
       initial_estimate_error=1.0,
-      measurement_noise=0.25,  # Higher value -> more smoothing
-      process_noise=0.08,      # Lower value -> more stable tracking
-      alpha=1.03,              # Slight forgetting factor
+      measurement_noise=0.2,   # Reduced for smoother lead detection
+      process_noise=0.05,      # Reduced for more stable tracking
+      alpha=1.02,              # Reduced forgetting factor for stability
       window_size_equivalent=WMACConstants.LEAD_WINDOW_SIZE
     )
     self._has_lead_filtered = False
@@ -140,9 +146,9 @@ class DynamicExperimentalController:
     self._slow_down_filter = KalmanFilter(
       initial_value=0,
       initial_estimate_error=1.0,
-      measurement_noise=0.4,   # Higher because we want smoother transitions
-      process_noise=0.15,      # Balance responsiveness and stability
-      alpha=1.05,              # Moderate forgetting factor for quick adaptation
+      measurement_noise=0.3,   # Reduced for smoother slow down detection
+      process_noise=0.1,       # Reduced for more stable detection
+      alpha=1.03,              # Reduced forgetting factor
       window_size_equivalent=WMACConstants.SLOW_DOWN_WINDOW_SIZE
     )
     self._has_slow_down: bool = False
@@ -151,9 +157,9 @@ class DynamicExperimentalController:
     self._slowness_filter = KalmanFilter(
       initial_value=0,
       initial_estimate_error=1.0,
-      measurement_noise=0.18,  # Lower for faster response
-      process_noise=0.08,      # Balanced for stability in speed measurements
-      alpha=1.02,              # Slight forgetting factor
+      measurement_noise=0.15,  # Reduced for smoother slowness detection
+      process_noise=0.06,      # Reduced for stability
+      alpha=1.015,             # Much smaller forgetting factor for stability
       window_size_equivalent=WMACConstants.SLOWNESS_WINDOW_SIZE
     )
     self._has_slowness: bool = False
@@ -161,10 +167,10 @@ class DynamicExperimentalController:
     # For tracking lead vehicle distance
     self._lead_dist_filter = KalmanFilter(
       initial_value=0,
-      initial_estimate_error=5.0,  # Higher initial uncertainty
-      measurement_noise=0.3,
-      process_noise=2.0,           # Higher because distance can change rapidly
-      alpha=1.1                    # Forget old distance measurements faster
+      initial_estimate_error=5.0,
+      measurement_noise=0.2,   # Reduced for smoother distance tracking
+      process_noise=1.5,       # Reduced
+      alpha=1.08               # Reduced forgetting factor
     )
     self._lead_dist = 0.0
 
@@ -172,9 +178,9 @@ class DynamicExperimentalController:
     self._lead_vel_filter = KalmanFilter(
       initial_value=0,
       initial_estimate_error=2.0,
-      measurement_noise=0.2,
-      process_noise=1.0,           # Higher for velocity changes
-      alpha=1.2                    # Forget old velocity measurements faster
+      measurement_noise=0.15,  # Reduced
+      process_noise=0.8,       # Reduced
+      alpha=1.15               # Reduced forgetting factor
     )
     self._lead_rel_vel = 0.0
 
@@ -182,9 +188,9 @@ class DynamicExperimentalController:
     self._lead_accel_filter = KalmanFilter(
       initial_value=0,
       initial_estimate_error=1.0,
-      measurement_noise=0.3,
-      process_noise=2.0,           # Higher for acceleration changes
-      alpha=1.3                    # Forget old acceleration data quickly
+      measurement_noise=0.2,   # Reduced
+      process_noise=1.5,       # Reduced
+      alpha=1.25               # Reduced forgetting factor
     )
     self._lead_accel = 0.0
     self._prev_lead_vel = 0.0
@@ -193,12 +199,21 @@ class DynamicExperimentalController:
     self._curvature_filter = KalmanFilter(
       initial_value=0,
       initial_estimate_error=1.0,
-      measurement_noise=0.4,
-      process_noise=0.1,
-      alpha=1.05
+      measurement_noise=0.3,   # Reduced for smoother curvature detection
+      process_noise=0.08,      # Reduced
+      alpha=1.03               # Reduced forgetting factor
     )
     self._curvature = 0.0
     self._high_curvature = False
+
+    # Mode decision filter for smooth transitions
+    self._mode_decision_filter = KalmanFilter(
+      initial_value=0,
+      initial_estimate_error=0.5,
+      measurement_noise=0.1,   # Low noise for smooth mode transitions
+      process_noise=0.02,      # Very low for stable mode decisions
+      alpha=1.01               # Minimal forgetting for stability
+    )
 
     self._v_ego_kph = 0.
     self._v_cruise_kph = 0.
@@ -281,20 +296,20 @@ class DynamicExperimentalController:
 
             self._curvature_filter.add_data(curvature)
             self._curvature = self._curvature_filter.get_value() or 0.0
-            self._high_curvature = self._curvature > 0.05  # Threshold for high curvature
+            self._high_curvature = self._curvature > 0.04  # Threshold for high curvature
         except Exception:
           pass  # Safely handle any numerical issues
 
-    # Slow down detection
+    # Slow down detection with smoother thresholds
     slow_down_threshold = float(
       interp(self._v_ego_kph, WMACConstants.SLOW_DOWN_BP, WMACConstants.SLOW_DOWN_DIST)
     )
 
-    curv_score = np.clip(self._curvature / 0.1, 0.0, 1.0)
+    curv_score = np.clip(self._curvature / 0.08, 0.0, 1.0)  # Slightly adjusted scaling
     endpt_score = 0.0
     if len(md.orientation.x) == len(md.position.x) == TRAJECTORY_SIZE:
       endpoint_x = md.position.x[TRAJECTORY_SIZE - 1]
-      endpt_score = np.clip((slow_down_threshold - endpoint_x) / 10.0, 0.0, 1.0)
+      endpt_score = np.clip((slow_down_threshold - endpoint_x) / 12.0, 0.0, 1.0)  # Smoother scaling
 
     # Combine urgency from curvature + endpoint
     urgency = max(curv_score, endpt_score)
@@ -303,115 +318,124 @@ class DynamicExperimentalController:
     self._slow_down_filter.add_data(urgency)
     urgency_filtered = self._slow_down_filter.get_value() or 0.0
 
-    # Final decision using probabilistic threshold
-    self._has_slow_down = urgency_filtered > WMACConstants.SLOW_DOWN_PROB
+    # Use smoother threshold with hysteresis
+    slow_down_threshold_high = WMACConstants.SLOW_DOWN_PROB + self._mode_hysteresis
+    slow_down_threshold_low = WMACConstants.SLOW_DOWN_PROB - self._mode_hysteresis
+
+    if self._has_slow_down:
+      # Currently detecting slow down, use lower threshold to exit
+      self._has_slow_down = urgency_filtered > slow_down_threshold_low
+    else:
+      # Not currently detecting, use higher threshold to enter
+      self._has_slow_down = urgency_filtered > slow_down_threshold_high
 
     # use it for debug
     self._urgency = urgency_filtered
 
-
-    # Slowness detection with Kalman filtering
+    # Slowness detection with hysteresis
     if not self._has_standstill:
-      self._slowness_filter.add_data(float(self._v_ego_kph <= (self._v_cruise_kph * WMACConstants.SLOWNESS_CRUISE_OFFSET)))
+      slowness_raw = float(self._v_ego_kph <= (self._v_cruise_kph * WMACConstants.SLOWNESS_CRUISE_OFFSET))
+      self._slowness_filter.add_data(slowness_raw)
       slowness_filtered_value = self._slowness_filter.get_value() or 0.0
-      self._has_slowness = slowness_filtered_value > WMACConstants.SLOWNESS_PROB
+
+      # Apply hysteresis to slowness detection
+      slowness_threshold_high = WMACConstants.SLOWNESS_PROB + self._mode_hysteresis
+      slowness_threshold_low = WMACConstants.SLOWNESS_PROB - self._mode_hysteresis
+
+      if self._has_slowness:
+        self._has_slowness = slowness_filtered_value > slowness_threshold_low
+      else:
+        self._has_slowness = slowness_filtered_value > slowness_threshold_high
 
     # Keep prev value for lead filtered
     self._has_lead_filtered_prev = self._has_lead_filtered
 
-  def _radarless_mode(self) -> None:
-    # Enhanced radarless mode implementation
+  def _calculate_mode_score(self) -> float:
+    """Calculate a continuous score from 0.0 (ACC) to 1.0 (Blended)"""
+    score = 0.0
 
-    # When standstill: blended
+    # Standstill strongly favors blended
     if self._has_standstill:
-      self._set_mode('blended')
-      return
+      score += 0.8
 
-    # When detecting slow down scenario: blended
+    # Slow down detection
     if self._has_slow_down:
-      self._set_mode('blended')
-      return
+      # Use the urgency value directly for smooth scoring
+      score += min(0.6, self._urgency * 0.9)
 
-    # When high curvature is detected: use blended for better curve handling
+    # High curvature at speed
     if self._high_curvature and self._v_ego_kph > 45.0:
-      self._set_mode('blended')
-      return
+      curvature_score = min(0.5, self._curvature * 10.0)
+      score += curvature_score
 
-    # Car driving at speed lower than set speed: acc
+    # Slowness favors ACC (negative score)
     if self._has_slowness:
-      self._set_mode('acc')
-      return
+      slowness_value = self._slowness_filter.get_value() or 0.0
+      score -= min(0.4, slowness_value * 0.5)
 
-    # Default to acc mode
-    self._set_mode('acc')
+    # Lead vehicle considerations for radar mode
+    if not self._CP.radarUnavailable and self._has_lead_filtered:
+      # Lead distance and relative velocity considerations
+      if self._lead_dist < 40.0 and self._lead_rel_vel < -0.5:
+        # Close lead that's getting closer
+        distance_factor = max(0.0, (40.0 - self._lead_dist) / 40.0)
+        velocity_factor = max(0.0, (-self._lead_rel_vel) / 5.0)
+        score += min(0.3, distance_factor * velocity_factor * 0.4)
+
+      # Lead acceleration (hard braking)
+      if self._lead_accel < -1.5:
+        accel_factor = max(0.0, (-self._lead_accel - 1.5) / 3.0)
+        score += min(0.4, accel_factor * 0.5)
+
+    return np.clip(score, 0.0, 1.0)
+
+  def _smooth_mode_transition(self) -> None:
+    """Handle smooth mode transitions using continuous scoring"""
+    target_score = self._calculate_mode_score()
+
+    # Apply Kalman filtering to the mode decision
+    self._mode_decision_filter.add_data(target_score)
+    filtered_score = self._mode_decision_filter.get_value() or 0.0
+
+    # Update mode confidence with rate limiting
+    confidence_diff = filtered_score - self._mode_confidence
+    max_change = self._mode_transition_rate
+
+    if abs(confidence_diff) > max_change:
+      if confidence_diff > 0:
+        self._mode_confidence += max_change
+      else:
+        self._mode_confidence -= max_change
+    else:
+      self._mode_confidence = filtered_score
+
+    # Clamp confidence
+    self._mode_confidence = np.clip(self._mode_confidence, 0.0, 1.0)
+
+    # Determine mode with hysteresis
+    if self._mode == 'acc':
+      threshold = 0.6  # Higher threshold to switch to blended
+    else:
+      threshold = 0.4  # Lower threshold to switch back to acc
+
+    if self._mode_confidence > threshold:
+      self._mode = 'blended'
+    else:
+      self._mode = 'acc'
+
+  def _radarless_mode(self) -> None:
+    """Enhanced radarless mode with smooth transitions"""
+    self._smooth_mode_transition()
 
   def _radar_mode(self) -> None:
-    # Enhanced radar mode with lead distance and acceleration consideration
-
-    # Advanced radar mode decision logic
-    if self._has_lead_filtered:
-      # Lead vehicle detected
-      #  if self._has_standstill:
-      #    # Vehicle is stopped
-      #    self._set_mode('blended')
-      #    return
-
-      # Check for rapid deceleration of lead vehicle
-      #  if self._lead_accel < -2.0:
-      # Lead is braking hard, use blended mode for better response
-      #    self._set_mode('blended')
-      #    return
-
-      # Check distance-based conditions
-      #  if self._lead_dist < 30.0:
-      # Lead is closer than 30m
-      #    if self._lead_rel_vel < -1.0:
-      # Lead is getting closer, use blended for more responsive braking
-      #      self._set_mode('blended')
-      #      return
-
-      # Lead is close but not getting closer significantly
-      # Use acc for smooth following
-      #    self._set_mode('acc')
-      #    return
-      #  else:
-      # Lead is far away, use normal acc behavior
-      self._set_mode('acc')
-      return
-
-    # No lead vehicle detected
-
-    # When standstill: blended
-    if self._has_standstill:
-      self._set_mode('blended')
-      return
-
-    # When detecting slow down scenario or high curvature: blended
-    if self._has_slow_down:
-      self._set_mode('blended')
-      return
-
-    # When high curvature is detected: use blended for better curve handling
-    if self._high_curvature and self._v_ego_kph > 50.0:
-      self._set_mode('blended')
-      return
-
-    # Car driving at speed lower than set speed: acc
-    if self._has_slowness:
-      self._set_mode('acc')
-      return
-
-    # Default to acc mode
-    self._set_mode('acc')
+    """Enhanced radar mode with smooth transitions"""
+    self._smooth_mode_transition()
 
   def _set_mode(self, mode: str) -> None:
-    if self._set_mode_timeout == 0:
-      self._mode = mode
-      if mode == 'blended':
-        self._set_mode_timeout = SET_MODE_TIMEOUT
-
-    if self._set_mode_timeout > 0:
-      self._set_mode_timeout -= 1
+    """Legacy method - now handled by smooth transition logic"""
+    # This method is kept for compatibility but the actual mode setting
+    # is now handled by _smooth_mode_transition()
+    pass
 
   def update(self, sm: messaging.SubMaster) -> None:
     self._read_params()
