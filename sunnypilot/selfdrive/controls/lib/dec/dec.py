@@ -326,9 +326,8 @@ class DynamicExperimentalController:
 
     self._has_lead_filtered_prev = self._has_lead_filtered
 
-
-  def _should_use_blended_radarless(self) -> bool:
-    """Logic for radarless vehicles - more aggressive blended mode usage"""
+  def _should_use_blended(self) -> bool:
+    """Simple logic to determine if blended mode should be used"""
 
     # Always use blended when stopped
     if self._has_standstill:
@@ -342,34 +341,10 @@ class DynamicExperimentalController:
     if self._high_curvature and self._v_ego_kph > 45.0:
       return True
 
-    # Use blended when going slow relative to cruise speed
-    if self._has_slowness:
-      return True
+    # For radar mode: don't switch to blended just because we have a lead
+    # Keep it simple - lead following is handled well by ACC
 
     # Default to ACC mode
-    return False
-
-  def _should_use_blended_radar(self) -> bool:
-    """Logic for radar-equipped vehicles - conservative blended mode usage"""
-
-    # Always use blended when stopped
-    if self._has_standstill:
-      return True
-
-    # With radar, ACC handles lead following well, so be more conservative
-    # Only use blended for more critical scenarios
-    if self._has_lead_filtered:
-      return False
-
-    # Use blended for high curvature at speed
-    if self._high_curvature and self._v_ego_kph > 45.0:
-      return True
-
-    # Use blended for severe slow down scenarios (higher threshold)
-    if self._has_slow_down: # and self._urgency > 0.7:
-      return True
-
-    # Default to ACC mode - let radar handle lead following
     return False
 
   def _set_mode_with_stability(self, target_mode: str) -> None:
@@ -389,10 +364,10 @@ class DynamicExperimentalController:
       self._mode_stability_counter = max(0, self._mode_stability_counter - 1)
 
   def _radarless_mode(self) -> None:
-    """Radarless mode logic - more reliant on blended mode"""
+    """Simple radarless mode logic"""
 
     # Determine target mode
-    if self._should_use_blended_radarless():
+    if self._should_use_blended():
       target_mode = 'blended'
     else:
       target_mode = 'acc'
@@ -401,10 +376,12 @@ class DynamicExperimentalController:
     self._set_mode_with_stability(target_mode)
 
   def _radar_mode(self) -> None:
-    """Radar mode logic - prefer ACC for lead following"""
+    """Simple radar mode logic"""
 
-    # Determine target mode
-    if self._should_use_blended_radar():
+    # Same logic as radarless for now - keep it simple
+    # Lead vehicle handling is already good in ACC mode
+
+    if self._should_use_blended():
       target_mode = 'blended'
     else:
       target_mode = 'acc'
