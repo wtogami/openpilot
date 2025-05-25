@@ -459,7 +459,7 @@ class DynamicExperimentalController:
       return 'blended'
 
     # PRIORITY 3: Active driving scenarios requiring immediate response
-    if self._has_slow_down and self._slow_down_confidence > 0.5:
+    if self._has_slow_down: # and self._slow_down_confidence > 0.5:
       return 'blended'
 
     # PRIORITY 4: Standstill scenarios (less urgent than active slow-down)
