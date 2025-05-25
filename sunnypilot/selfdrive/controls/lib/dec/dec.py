@@ -42,7 +42,7 @@ V_ACC_MIN = 9.72
 
 class WMACConstants:
   # Lead detection - increased window for smoother filtering
-  LEAD_WINDOW_SIZE = 8
+  LEAD_WINDOW_SIZE = 5
   LEAD_PROB = 0.45  # Slightly lower threshold for better responsiveness
 
   # Slow down detection - larger window for stability
