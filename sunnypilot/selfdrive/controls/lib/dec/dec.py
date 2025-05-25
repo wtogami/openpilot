@@ -47,7 +47,7 @@ class WMACConstants:
 
   # Slow down detection - larger window for stability
   SLOW_DOWN_WINDOW_SIZE = 8
-  SLOW_DOWN_PROB = 0.55  # Slightly lower for smoother transitions
+  SLOW_DOWN_PROB = 0.35  # FIXED: Reduced from 0.55 for better triggering
 
   # Enhanced breakpoints with more granular control
   SLOW_DOWN_BP = [0., 5., 15., 25., 35., 45., 55., 65., 75.]
@@ -70,6 +70,7 @@ class WMACConstants:
   CONFIDENCE_DECAY_RATE = 0.92  # How fast confidence decays
   MIN_CONFIDENCE_THRESHOLD = 0.3
   SPEED_SMOOTHING_FACTOR = 0.8
+
 
 class SNG_State(IntEnum):
   OFF = 0
@@ -239,6 +240,9 @@ class DynamicExperimentalController:
       'traffic_density': 0.0,
     }
 
+    # Debug variables - can be toggled
+    self._debug_enabled = True
+
   def _read_params(self) -> None:
     if self._frame % int(1. / DT_MDL) == 0:
       self._enabled = self._params.get_bool("DynamicExperimentalControl")
@@ -272,23 +276,61 @@ class DynamicExperimentalController:
     self._driving_context['traffic_density'] = min(lead_changes / max(len(self._lead_gmac.data), 1), 1.0)
 
   def _adaptive_slowdown_threshold(self) -> float:
-    """Enhanced adaptive threshold considering driving context"""
+    """Simplified adaptive threshold with less aggressive multipliers"""
     base_threshold = float(interp(self._v_ego_kph_smoothed, WMACConstants.SLOW_DOWN_BP, WMACConstants.SLOW_DOWN_DIST))
 
-    # Adjust based on driving context
+    # FIXED: Apply only one context adjustment, not stacking them
     if self._driving_context['is_highway']:
-      base_threshold *= 1.2  # More conservative on highway
+      return base_threshold * 1.1  # Slight increase for highway
     elif self._driving_context['is_city']:
-      base_threshold *= 0.9  # More aggressive in city
+      return base_threshold * 0.95  # Slight decrease for city
 
-    # Adjust based on traffic density
-    traffic_factor = 1.0 - 0.2 * self._driving_context['traffic_density']
-    base_threshold *= traffic_factor
+    # Default case - no stacking of multiple factors
+    return base_threshold
 
-    # Confidence-based scaling
-    confidence_factor = 1.0 + 0.1 * self._slow_down_gmac.get_confidence()
+  def _debug_slow_down_detection(self, md, slow_down_trigger: bool, adaptive_threshold: float) -> None:
+    """Debug helper for slow down detection"""
+    if not self._debug_enabled:
+      return
 
-    return base_threshold * confidence_factor
+    # Check trajectory data validity
+    has_valid_trajectory = (
+          hasattr(md, 'position') and hasattr(md.position, 'x') and
+          hasattr(md, 'orientation') and hasattr(md.orientation, 'x') and
+          len(md.position.x) >= TRAJECTORY_SIZE and
+          len(md.orientation.x) >= TRAJECTORY_SIZE
+    )
+
+    print(f"=== SLOW DOWN DEBUG ===")
+    print(f"Valid trajectory: {has_valid_trajectory}")
+    if hasattr(md, 'position') and hasattr(md.position, 'x'):
+      print(f"Position.x length: {len(md.position.x)}")
+    if hasattr(md, 'orientation') and hasattr(md.orientation, 'x'):
+      print(f"Orientation.x length: {len(md.orientation.x)}")
+    print(f"Expected TRAJECTORY_SIZE: {TRAJECTORY_SIZE}")
+
+    if has_valid_trajectory:
+      final_position = md.position.x[TRAJECTORY_SIZE - 1]
+      print(f"Final trajectory position: {final_position:.2f}m")
+      print(f"Adaptive threshold: {adaptive_threshold:.2f}m")
+      print(f"Slow down trigger: {slow_down_trigger}")
+
+      # Debug threshold calculation
+      base_threshold = float(interp(self._v_ego_kph_smoothed,
+                                    WMACConstants.SLOW_DOWN_BP,
+                                    WMACConstants.SLOW_DOWN_DIST))
+      print(f"Base threshold: {base_threshold:.2f}m")
+      print(f"Current speed: {self._v_ego_kph_smoothed:.1f} kph")
+      print(f"Highway mode: {self._driving_context['is_highway']}")
+      print(f"City mode: {self._driving_context['is_city']}")
+
+    # Debug moving average
+    slow_down_avg = self._slow_down_gmac.get_weighted_average()
+    print(f"Slow down moving average: {slow_down_avg:.3f}")
+    print(f"Slow down threshold: {WMACConstants.SLOW_DOWN_PROB}")
+    print(f"Has slow down: {self._has_slow_down}")
+    print(f"GMAC data: {self._slow_down_gmac.data}")
+    print("========================")
 
   def _update_calculations(self, sm: messaging.SubMaster) -> None:
     car_state = sm['carState']
@@ -326,12 +368,23 @@ class DynamicExperimentalController:
       confidence = self._lead_gmac.get_confidence()
       self._mode_manager.update_mode_confidence('acc', confidence)
 
-    # Enhanced slow down detection
+    # Enhanced slow down detection with better validation
+    slow_down_trigger = False
     adaptive_threshold = self._adaptive_slowdown_threshold()
-    slow_down_trigger = (
-          len(md.orientation.x) == len(md.position.x) == TRAJECTORY_SIZE and
-          md.position.x[TRAJECTORY_SIZE - 1] < adaptive_threshold
-    )
+
+    # Better data validation - check if data exists and has minimum required length
+    if (hasattr(md, 'position') and hasattr(md.position, 'x') and
+          hasattr(md, 'orientation') and hasattr(md.orientation, 'x')):
+
+      pos_len = len(md.position.x) if md.position.x else 0
+      ori_len = len(md.orientation.x) if md.orientation.x else 0
+
+      # Use >= instead of == for more flexible validation
+      if pos_len >= TRAJECTORY_SIZE and ori_len >= TRAJECTORY_SIZE:
+        slow_down_trigger = md.position.x[TRAJECTORY_SIZE - 1] < adaptive_threshold
+
+    # Debug output
+    self._debug_slow_down_detection(md, slow_down_trigger, adaptive_threshold)
 
     self._slow_down_gmac.add_data(float(slow_down_trigger))
     slow_down_avg = self._slow_down_gmac.get_weighted_average()
@@ -389,25 +442,31 @@ class DynamicExperimentalController:
   def _determine_optimal_mode(self) -> str:
     """Determine optimal mode based on current conditions and confidence"""
 
-    # High priority conditions that force blended mode
+    # PRIORITY 1: If there's a reliable lead, prefer ACC (it's designed for this)
+    if self._has_lead_filtered and not self._has_standstill:
+      # Only override ACC for critical safety situations
+      if self._has_mpc_fcw:
+        return 'blended'  # FCW overrides everything
+      if self._has_dangerous_ttc:
+        return 'blended'  # Dangerous TTC overrides
+      return 'acc'  # Default to ACC with lead
+
+    # PRIORITY 2: Most critical safety conditions
     if self._has_mpc_fcw:
-      return 'blended'
-
-    if self._has_standstill:
-      return 'blended'
-
-    # For radar-equipped vehicles
-    if not self._CP.radarUnavailable:
-      if self._has_lead_filtered and not self._has_standstill:
-        return 'acc'
-
-    if self._has_slow_down and self._slow_down_confidence > 0.7:
       return 'blended'
 
     if self._has_dangerous_ttc:
       return 'blended'
 
-    # Default conditions
+    # PRIORITY 3: Active driving scenarios requiring immediate response
+    if self._has_slow_down and self._slow_down_confidence > 0.7:
+      return 'blended'
+
+    # PRIORITY 4: Standstill scenarios (less urgent than active slow-down)
+    if self._has_standstill:
+      return 'blended'
+
+    # PRIORITY 5: No lead scenarios - decide based on driving conditions
     if self._has_slowness:
       return 'acc'
 
@@ -415,6 +474,10 @@ class DynamicExperimentalController:
 
   def set_mpc_fcw_crash_cnt(self) -> None:
     self._mpc_fcw_crash_cnt = self._mpc.crash_cnt
+
+  def enable_debug(self, enabled: bool = True) -> None:
+    """Enable/disable debug output"""
+    self._debug_enabled = enabled
 
   def update(self, sm: messaging.SubMaster) -> None:
     self._read_params()
