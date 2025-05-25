@@ -241,7 +241,7 @@ class DynamicExperimentalController:
     }
 
     # Debug variables - can be toggled
-    self._debug_enabled = True
+    self._debug_enabled = False
 
   def _read_params(self) -> None:
     if self._frame % int(1. / DT_MDL) == 0:
@@ -459,7 +459,7 @@ class DynamicExperimentalController:
       return 'blended'
 
     # PRIORITY 3: Active driving scenarios requiring immediate response
-    if self._has_slow_down and self._slow_down_confidence > 0.7:
+    if self._has_slow_down and self._slow_down_confidence > 0.5:
       return 'blended'
 
     # PRIORITY 4: Standstill scenarios (less urgent than active slow-down)
