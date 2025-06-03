@@ -45,6 +45,7 @@ def manager_init() -> None:
     ("AutoLaneChangeTimer", "0"),
     ("AutoLaneChangeBsmDelay", "0"),
     ("BlindSpot", "0"),
+    ("DeviceBootMode", "0"),
     ("DynamicExperimentalControl", "0"),
     ("HyundaiLongitudinalTuning", "0"),
     ("Mads", "1"),
@@ -63,6 +64,10 @@ def manager_init() -> None:
     ("ToyotaDriveMode", "0"),
     ("DynamicPersonality", "0"),
   ]
+
+  # device boot mode
+  if params.get("DeviceBootMode") == b"1": # start in always offroad mode
+    params.put_bool("OffroadMode", True)
 
   if params.get_bool("RecordFrontLock"):
     params.put_bool("RecordFront", True)
