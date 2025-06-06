@@ -20,7 +20,7 @@ from openpilot.system.hardware.hw import Paths
 from pathlib import Path
 
 CURRENT_SELECTOR_VERSION = 6
-REQUIRED_MIN_SELECTOR_VERSION = 6
+REQUIRED_MIN_SELECTOR_VERSION = 5
 
 USE_ONNX = os.getenv('USE_ONNX', PC)
 
