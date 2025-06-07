@@ -140,7 +140,7 @@ class DynamicExperimentalController:
     self._slow_down_filter = KalmanFilter(
       initial_value=0,
       initial_estimate_error=1.0,
-      measurement_noise=0.4,   # Higher because we want smoother transitions
+      measurement_noise=0.3,   # Higher because we want smoother transitions
       process_noise=0.15,      # Balance responsiveness and stability
       alpha=1.05,              # Moderate forgetting factor for quick adaptation
       window_size_equivalent=WMACConstants.SLOW_DOWN_WINDOW_SIZE
