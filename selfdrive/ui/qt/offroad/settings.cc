@@ -45,30 +45,28 @@ TogglesPanel::TogglesPanel(SettingsWindow *parent) : ListWidget(parent) {
       tr("Toyota: Auto Brake Hold"),
       tr("umm auto brake hold?"),
       "../assets/offroad/icon_blank.png",
+      false,
     },
     {
       "ToyotaEnhancedBsm",
       tr("Toyota: Enhanced BSM"),
       tr("like blind spot monitoring but better?"),
       "../assets/offroad/icon_blank.png",
+      false,
     },
     {
       "ToyotaTSS2Long",
       tr("Toyota: custom tune"),
       tr("idk something gas and brake"),
       "../assets/offroad/icon_blank.png",
-    },
-	  {
-      "RainbowMode",
-      tr("Enable Tesla Rainbow Mode"),
-      tr("....."),
-      "../assets/offroad/icon_blank.png",
+      false,
     },
     {
       "ToyotaDriveMode",
       tr("Enable Toyota Drive Mode Button"),
       tr("Sunnypilot will link the Acceleration Personality to the car's physical drive mode selector.\nReboot Required."),
       "../assets/offroad/icon_blank.png",
+      false,
     },
     {
       "DisengageOnAccelerator",
@@ -118,7 +116,7 @@ TogglesPanel::TogglesPanel(SettingsWindow *parent) : ListWidget(parent) {
 
   // accel controller
   std::vector<QString> accel_personality_texts{tr("Sport"), tr("Normal"), tr("Eco"), tr("Stock")};
-  accel_personality_setting = new ButtonParamControlSP("AccelPersonality", tr("Acceleration Personality"),
+  accel_personality_setting = new ButtonParamControl("AccelPersonality", tr("Acceleration Personality"),
                                           tr("Normal is recommended. In sport mode, sunnypilot will provide aggressive acceleration for a dynamic driving experience. "
                                              "In eco mode, sunnypilot will apply smoother and more relaxed acceleration. On supported cars, you can cycle through these "
                                              "acceleration personality within Onroad Settings on the driving screen."),
