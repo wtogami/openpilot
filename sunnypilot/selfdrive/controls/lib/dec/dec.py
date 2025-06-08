@@ -140,7 +140,7 @@ class DynamicExperimentalController:
     self._slow_down_filter = KalmanFilter(
       initial_value=0,
       initial_estimate_error=1.0,
-      measurement_noise=0.3,   # Higher because we want smoother transitions
+      measurement_noise=0.15,   # Higher because we want smoother transitions
       process_noise=0.15,      # Balance responsiveness and stability
       alpha=1.05,              # Moderate forgetting factor for quick adaptation
       window_size_equivalent=WMACConstants.SLOW_DOWN_WINDOW_SIZE
@@ -289,24 +289,22 @@ class DynamicExperimentalController:
     slow_down_threshold = float(
       interp(self._v_ego_kph, WMACConstants.SLOW_DOWN_BP, WMACConstants.SLOW_DOWN_DIST)
     )
-
-    curv_score = np.clip(self._curvature / 0.1, 0.0, 1.0)
-    endpt_score = 0.0
-    if len(md.orientation.x) == len(md.position.x) == TRAJECTORY_SIZE:
+    urgency = 0.0
+    if len(md.position.x) == TRAJECTORY_SIZE:
       endpoint_x = md.position.x[TRAJECTORY_SIZE - 1]
-      endpt_score = np.clip((slow_down_threshold - endpoint_x) / 10.0, 0.0, 1.0)
+      # Simple: if endpoint is significantly shorter than expected, that's urgency
+      if endpoint_x < slow_down_threshold:
+        # More aggressive scaling - gets to 1.0 faster
+        shortage = slow_down_threshold - endpoint_x
+        urgency = min(1.0, shortage / 20.0)  # Reaches max at 20m shortage
 
-    # Combine urgency from curvature + endpoint
-    urgency = max(curv_score, endpt_score)
-
-    # Apply Kalman filtering to slow down detection
+        # Boost urgency if we're going fast and endpoint is really short
+        if self._v_ego_kph > 40 and endpoint_x < 50:
+          urgency = min(1.0, urgency * 1.5)
     self._slow_down_filter.add_data(urgency)
     urgency_filtered = self._slow_down_filter.get_value() or 0.0
-
-    # Final decision using probabilistic threshold
     self._has_slow_down = urgency_filtered > WMACConstants.SLOW_DOWN_PROB
-
-    # use it for debug
+    # Debug
     self._urgency = urgency_filtered
 
 
@@ -349,7 +347,7 @@ class DynamicExperimentalController:
     # Enhanced radar mode with lead distance and acceleration consideration
 
     # Advanced radar mode decision logic
-    if self._has_lead_filtered:
+    if self._has_lead_filtered and not self._has_standstill:
       # Lead vehicle detected
       #  if self._has_standstill:
       #    # Vehicle is stopped
@@ -379,13 +377,13 @@ class DynamicExperimentalController:
       self._set_mode('acc')
       return
 
-    # When detecting slow down scenario or high curvature: blended
-    if self._has_slow_down:
+    # When standstill: blended
+    if self._has_standstill:
       self._set_mode('blended')
       return
 
-    # When standstill: blended
-    if self._has_standstill:
+    # When detecting slow down scenario or high curvature: blended
+    if self._has_slow_down:
       self._set_mode('blended')
       return
 
