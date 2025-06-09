@@ -38,6 +38,9 @@ class SpeedLimitResolver:
     self._limit_solutions[source] = 0.
     self._distance_solutions[source] = 0.
 
+  def _is_sock_updated(self, sock):
+    return self._sm.alive[sock] and self._sm.updated[sock]
+
   def resolve(self, v_ego: float, current_speed_limit: float, sm: messaging.SubMaster) -> tuple[float, float, Source]:
     self._v_ego = v_ego
     self._current_speed_limit = current_speed_limit
