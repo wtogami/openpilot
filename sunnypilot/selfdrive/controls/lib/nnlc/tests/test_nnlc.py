@@ -73,7 +73,7 @@ class TestNeuralNetworkLateralControl:
     controller.extension.model_v2 = model_v2
 
     # Saturate for curvature limited and controller limited
-    test_lag = 0.3
+    test_lag = 0.1
     for _ in range(1000):
       controller.extension.update_model_v2(model_v2)
       controller.extension.update_lateral_lag(test_lag)
