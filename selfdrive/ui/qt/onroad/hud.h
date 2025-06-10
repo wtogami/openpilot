@@ -21,6 +21,18 @@ protected:
   void drawSetSpeed(QPainter &p, const QRect &surface_rect);
   void drawCurrentSpeed(QPainter &p, const QRect &surface_rect);
   void drawText(QPainter &p, int x, int y, const QString &text, int alpha = 255);
+  void drawSpeedLimitSigns(QPainter &p, const QRect &rect);
+
+  // Navigation speed limits
+  float nav_speed_limit = 0.0;
+
+  // Display flags
+  bool show_slc = false;
+  bool over_speed_limit = false;
+
+  // Speed Limit Control (SLC)
+  float slc_speed_limit = 0.0;
+  float slc_speed_offset = 0.0;
 
   float speed = 0;
   float set_speed = 0;
