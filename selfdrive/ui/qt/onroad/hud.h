@@ -24,6 +24,11 @@ protected:
   void drawSpeedLimitSigns(QPainter &p, const QRect &rect);
   void drawVisionTurnControl(QPainter &p, const QRect &surface_rect);
 
+  // Additional drawing methods from implementation
+  void drawUpcomingSpeedLimit(QPainter &p, const QRect &surface_rect);
+  void drawSLCStateIndicator(QPainter &p, const QRect &surface_rect);
+  void drawRoadName(QPainter &p, const QRect &surface_rect);
+
   // Navigation speed limits
   float nav_speed_limit = 0.0;
 
@@ -34,6 +39,19 @@ protected:
   // Speed Limit Control (SLC)
   float slc_speed_limit = 0.0;
   float slc_speed_offset = 0.0;
+  cereal::LongitudinalPlanSP::SpeedLimitControlState slc_state = cereal::LongitudinalPlanSP::SpeedLimitControlState::INACTIVE;
+  float dist_to_speed_limit = 0.0;
+
+  // Speed violation levels
+  int speed_violation_level = 0;
+
+  // Upcoming speed limit data
+  bool speed_limit_ahead_valid = false;
+  float speed_limit_ahead = 0.0;
+  float speed_limit_ahead_distance = 0.0;
+
+  // Road information
+  QString road_name;
 
   // Vision Turn Speed Control (VTSC)
   int vtsc_state = 0;

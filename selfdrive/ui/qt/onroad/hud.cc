@@ -44,6 +44,7 @@ void HudRenderer::updateState(const UIState &s) {
   const auto &car_state = sm["carState"].getCarState();
   const auto lp_sp = sm["longitudinalPlanSP"].getLongitudinalPlanSP();
   const auto slc = lp_sp.getSlc();
+  const auto live_map_data = sm["liveMapDataSP"].getLiveMapDataSP();
 
   // Speed limit from SLC
   nav_speed_limit = slc.getSpeedLimit();
@@ -51,7 +52,21 @@ void HudRenderer::updateState(const UIState &s) {
   // SLC state variables
   slc_speed_limit = slc.getSpeedLimit() * (is_metric ? MS_TO_KPH : MS_TO_MPH);
   slc_speed_offset = slc.getSpeedLimitOffset() * (is_metric ? MS_TO_KPH : MS_TO_MPH);
+  slc_state = slc.getState();
   show_slc = slc_speed_limit > 0.0;
+
+  // Distance to speed limit change
+  dist_to_speed_limit = slc.getDistToSpeedLimit();
+
+  // Live map data for upcoming speed limits
+  speed_limit_ahead_valid = live_map_data.getSpeedLimitAheadValid();
+  if (speed_limit_ahead_valid) {
+    speed_limit_ahead = live_map_data.getSpeedLimitAhead() * (is_metric ? MS_TO_KPH : MS_TO_MPH);
+    speed_limit_ahead_distance = live_map_data.getSpeedLimitAheadDistance();
+  }
+
+  // Road name
+  road_name = QString::fromStdString(live_map_data.getRoadName());
 
   // Vision Turn Speed Control
   const auto vtsc = lp_sp.getVisionTurnSpeedControl();
@@ -75,10 +90,19 @@ void HudRenderer::updateState(const UIState &s) {
   float v_ego = v_ego_cluster_seen ? car_state.getVEgoCluster() : car_state.getVEgo();
   speed = std::max<float>(0.0f, v_ego * (is_metric ? MS_TO_KPH : MS_TO_MPH));
 
-  // Over speed limit detection
-  over_speed_limit = (show_slc && slc_speed_limit > 0) ?
-                     (speed > slc_speed_limit + slc_speed_offset + 5.0) :
-                     (nav_speed_limit > 0 && speed > nav_speed_limit + 5.0);
+  // Enhanced over speed limit detection with multiple thresholds
+  float current_limit = (show_slc && slc_speed_limit > 0) ? slc_speed_limit : nav_speed_limit;
+  if (current_limit > 0) {
+    float effective_limit = current_limit + slc_speed_offset;
+    speed_violation_level = 0; // No violation
+    if (speed > effective_limit + 3.0) speed_violation_level = 1; // Warning
+    if (speed > effective_limit + 5.0) speed_violation_level = 2; // Moderate
+    if (speed > effective_limit + 8.0) speed_violation_level = 3; // Severe
+    over_speed_limit = speed_violation_level > 1;
+  } else {
+    speed_violation_level = 0;
+    over_speed_limit = false;
+  }
 }
 
 void HudRenderer::draw(QPainter &p, const QRect &surface_rect) {
@@ -99,6 +123,21 @@ void HudRenderer::draw(QPainter &p, const QRect &surface_rect) {
   // Always try to draw speed limit signs if we have any speed limit data
   if ((show_slc && slc_speed_limit > 0) || nav_speed_limit > 0) {
     drawSpeedLimitSigns(p, surface_rect);
+  }
+
+  // Draw upcoming speed limit if available
+  if (speed_limit_ahead_valid && speed_limit_ahead != slc_speed_limit) {
+    drawUpcomingSpeedLimit(p, surface_rect);
+  }
+
+  // Draw SLC state indicator
+  if (show_slc) {
+    drawSLCStateIndicator(p, surface_rect);
+  }
+
+  // Draw road name if available
+  if (!road_name.isEmpty()) {
+    drawRoadName(p, surface_rect);
   }
 
   // Draw Vision Turn Speed Control if active
@@ -179,27 +218,38 @@ void HudRenderer::drawSpeedLimitSigns(QPainter &p, const QRect &surface_rect) {
   const int sign_height = 204;
   QRect sign_rect(sign_x, sign_y, sign_width, sign_height);
 
+  // Add pulsing animation for violations
+  bool should_pulse = speed_violation_level >= 2;
+  int pulse_alpha = should_pulse ? (int)(127 + 128 * std::sin(QTime::currentTime().msec() * 0.01)) : 255;
+
   if (!is_metric) {
     // US/Canada (MUTCD style) sign
     p.setPen(Qt::NoPen);
-    p.setBrush(QColor(255, 255, 255, 255));
+    p.setBrush(QColor(255, 255, 255, pulse_alpha));
     p.drawRoundedRect(sign_rect, 32, 32);
 
-    // Draw inner rounded rectangle with black border
+    // Draw inner rounded rectangle with colored border
     QRect inner_rect = sign_rect.adjusted(10, 10, -10, -10);
-    p.setPen(QPen(QColor(0, 0, 0, 255), 4));
-    p.setBrush(QColor(255, 255, 255, 255));
+    QColor border_color = QColor(0, 0, 0, 255);
+    if (speed_violation_level == 1) border_color = QColor(255, 165, 0, 255); // Orange or yello?
+    else if (speed_violation_level >= 2) border_color = QColor(255, 0, 0, 255); // Red
+
+    p.setPen(QPen(border_color, 4));
+    p.setBrush(QColor(255, 255, 255, pulse_alpha));
     p.drawRoundedRect(inner_rect, 22, 22);
 
     // "SPEED LIMIT" text
     p.setFont(InterFont(40, QFont::DemiBold));
-    p.setPen(QColor(0, 0, 0, 255));
+    p.setPen(QColor(0, 0, 0, pulse_alpha));
     p.drawText(inner_rect.adjusted(0, 10, 0, 0), Qt::AlignTop | Qt::AlignHCenter, tr("SPEED"));
     p.drawText(inner_rect.adjusted(0, 50, 0, 0), Qt::AlignTop | Qt::AlignHCenter, tr("LIMIT"));
 
     // Speed value with color coding
     p.setFont(InterFont(90, QFont::Bold));
-    QColor speed_color = over_speed_limit ? QColor(255, 0, 0, 255) : QColor(0, 0, 0, 255);
+    QColor speed_color = QColor(0, 0, 0, pulse_alpha);
+    if (speed_violation_level == 1) speed_color = QColor(255, 165, 0, pulse_alpha);
+    else if (speed_violation_level >= 2) speed_color = QColor(255, 0, 0, pulse_alpha);
+
     p.setPen(speed_color);
     p.drawText(inner_rect.adjusted(0, 80, 0, 0), Qt::AlignTop | Qt::AlignHCenter, speedLimitStr);
 
@@ -235,23 +285,29 @@ void HudRenderer::drawSpeedLimitSigns(QPainter &p, const QRect &surface_rect) {
 
     // Draw white circle background
     p.setPen(Qt::NoPen);
-    p.setBrush(QColor(255, 255, 255, 255));
+    p.setBrush(QColor(255, 255, 255, pulse_alpha));
     p.drawEllipse(circle_rect);
 
-    // Draw red border ring
     QRect red_ring = circle_rect.adjusted(4, 4, -4, -4);
-    p.setBrush(QColor(255, 0, 0, 255));
+    QColor ring_color = QColor(255, 0, 0, pulse_alpha);
+    if (speed_violation_level == 1) ring_color = QColor(255, 165, 0, pulse_alpha);
+    else if (speed_violation_level >= 2) ring_color = QColor(255, 0, 0, pulse_alpha);
+
+    p.setBrush(ring_color);
     p.drawEllipse(red_ring);
 
     // Draw white center circle for text
     QRect center_circle = red_ring.adjusted(8, 8, -8, -8);
-    p.setBrush(QColor(255, 255, 255, 255));
+    p.setBrush(QColor(255, 255, 255, pulse_alpha));
     p.drawEllipse(center_circle);
 
     // Speed value
     int font_size = (speedLimitStr.size() >= 3) ? 70 : 85;
     p.setFont(InterFont(font_size, QFont::Bold));
-    QColor speed_color = over_speed_limit ? QColor(255, 0, 0, 255) : QColor(0, 0, 0, 255);
+    QColor speed_color = QColor(0, 0, 0, pulse_alpha);
+    if (speed_violation_level == 1) speed_color = QColor(255, 165, 0, pulse_alpha);
+    else if (speed_violation_level >= 2) speed_color = QColor(255, 0, 0, pulse_alpha);
+
     p.setPen(speed_color);
 
     QRect speed_text_rect = center_circle;
@@ -276,6 +332,133 @@ void HudRenderer::drawSpeedLimitSigns(QPainter &p, const QRect &surface_rect) {
       p.drawText(offset_circle_rect, Qt::AlignCenter, slcSubText);
     }
   }
+}
+
+void HudRenderer::drawUpcomingSpeedLimit(QPainter &p, const QRect &surface_rect) {
+  if (!speed_limit_ahead_valid || speed_limit_ahead <= 0) return;
+
+  QString speedStr = QString::number(std::nearbyint(speed_limit_ahead));
+  QString distanceStr;
+  //TODO: this shit is garbage someone help
+  if (is_metric) {
+    if (speed_limit_ahead_distance < 1000) {
+      distanceStr = QString::number(std::nearbyint(speed_limit_ahead_distance)) + "m";
+    } else {
+      distanceStr = QString::number(speed_limit_ahead_distance / 1000.0, 'f', 1) + "km";
+    }
+  } else {
+    float distance_ft = speed_limit_ahead_distance * 3.28084;
+    if (distance_ft < 1000) {
+      distanceStr = QString::number(std::nearbyint(distance_ft)) + "ft";
+    } else {
+      distanceStr = QString::number(distance_ft / 5280.0, 'f', 1) + "mi";
+    }
+  }
+
+  // Position upcoming speed limit directly under the current speed limit sign
+  const int sign_width = is_metric ? 200 : 172;
+  const int sign_x = is_metric ? 280 : 272;
+  const int sign_y = 45;
+  const int sign_height = 204;
+
+  const int ahead_width = 140;
+  const int ahead_height = 120;
+  // Center the upcoming sign under the speed limit sign with small gap
+  const int ahead_x = sign_x + (sign_width - ahead_width) / 2;
+  const int ahead_y = sign_y + sign_height + 10; // 10px gap below speed limit sign
+
+  QRect ahead_rect(ahead_x, ahead_y, ahead_width, ahead_height);
+  p.setPen(QPen(QColor(255, 255, 255, 100), 3));
+  p.setBrush(QColor(0, 0, 0, 180));
+  p.drawRoundedRect(ahead_rect, 16, 16);
+
+  // "AHEAD" label
+  p.setFont(InterFont(24, QFont::DemiBold));
+  p.setPen(QColor(200, 200, 200, 255));
+  p.drawText(ahead_rect.adjusted(0, 8, 0, 0), Qt::AlignTop | Qt::AlignHCenter, tr("AHEAD"));
+
+  // Speed value
+  p.setFont(InterFont(48, QFont::Bold));
+  p.setPen(QColor(255, 255, 255, 255));
+  p.drawText(ahead_rect.adjusted(0, 35, 0, 0), Qt::AlignTop | Qt::AlignHCenter, speedStr);
+
+  // Distance
+  p.setFont(InterFont(20, QFont::Normal));
+  p.setPen(QColor(180, 180, 180, 255));
+  p.drawText(ahead_rect.adjusted(0, 85, 0, 0), Qt::AlignTop | Qt::AlignHCenter, distanceStr);
+}
+
+void HudRenderer::drawSLCStateIndicator(QPainter &p, const QRect &surface_rect) {
+  QString stateText;
+  QColor stateColor;
+
+  //TODO: fix me i am ugly
+  switch (slc_state) {
+    case cereal::LongitudinalPlanSP::SpeedLimitControlState::INACTIVE:
+      return; // Don't show anything
+    case cereal::LongitudinalPlanSP::SpeedLimitControlState::TEMP_INACTIVE:
+      stateText = tr("IGNORED");
+      stateColor = QColor(255, 165, 0, 255);
+      break;
+    case cereal::LongitudinalPlanSP::SpeedLimitControlState::PRE_ACTIVE:
+      stateText = tr("PREPARING");
+      stateColor = QColor(255, 255, 0, 255);
+      break;
+    case cereal::LongitudinalPlanSP::SpeedLimitControlState::ADAPTING:
+      stateText = tr("ADAPTING");
+      stateColor = QColor(0, 150, 255, 255);
+      break;
+    case cereal::LongitudinalPlanSP::SpeedLimitControlState::ACTIVE:
+      stateText = tr("ACTIVE");
+      stateColor = QColor(0, 255, 0, 255);
+      break;
+    default:
+      return;
+  }
+
+  // Position state indicator below the upcoming speed limit if it exists,
+  // otherwise below the current speed limit sign
+  const int sign_width = is_metric ? 200 : 172;
+  const int sign_x = is_metric ? 280 : 272;
+  const int sign_y = 45;
+  const int sign_height = 204;
+
+  int state_y = sign_y + sign_height + 10; // Default position right under speed limit
+
+  // If upcoming speed limit is shown, position state indicator below it
+  if (speed_limit_ahead_valid && speed_limit_ahead != slc_speed_limit) {
+    const int ahead_height = 120;
+    state_y = sign_y + sign_height + 10 + ahead_height + 10; // Below upcoming speed limit
+  }
+
+  QRect state_rect(sign_x, state_y, sign_width, 40);
+
+  p.setPen(QPen(stateColor, 2));
+  p.setBrush(QColor(0, 0, 0, 150));
+  p.drawRoundedRect(state_rect, 8, 8);
+
+  p.setFont(InterFont(24, QFont::Bold));
+  p.setPen(stateColor);
+  p.drawText(state_rect, Qt::AlignCenter, stateText);
+}
+
+void HudRenderer::drawRoadName(QPainter &p, const QRect &surface_rect) {
+  if (road_name.isEmpty()) return;
+
+  // Position road name at the top center
+  QRect road_rect(surface_rect.width() / 2 - 300, 5, 600, 60);
+
+  p.setPen(QPen(QColor(255, 255, 255, 100), 1));
+  //p.setBrush(QColor(0, 0, 0, 120));
+  p.drawRoundedRect(road_rect, 6, 6);
+
+  p.setFont(InterFont(40, QFont::Normal));
+  p.setPen(QColor(255, 255, 255, 200));
+
+  // Truncate long road names
+  QFontMetrics fm(p.font());
+  QString truncated = fm.elidedText(road_name, Qt::ElideRight, road_rect.width() - 20);
+  p.drawText(road_rect, Qt::AlignCenter, truncated);
 }
 
 void HudRenderer::drawCurrentSpeed(QPainter &p, const QRect &surface_rect) {
