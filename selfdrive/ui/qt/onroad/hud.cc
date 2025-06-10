@@ -445,18 +445,30 @@ void HudRenderer::drawSLCStateIndicator(QPainter &p, const QRect &surface_rect) 
 void HudRenderer::drawRoadName(QPainter &p, const QRect &surface_rect) {
   if (road_name.isEmpty()) return;
 
+  // Set font first to measure text
+  p.setFont(InterFont(40, QFont::Normal));
+  QFontMetrics fm(p.font());
+
+  // Calculate required width based on text + padding
+  int text_width = fm.horizontalAdvance(road_name);
+  int padding = 40;
+  int rect_width = text_width + padding;
+
+  // Set minimum and maximum widths
+  int min_width = 200;
+  int max_width = surface_rect.width() - 40;
+  rect_width = std::max(min_width, std::min(rect_width, max_width));
+
   // Position road name at the top center
-  QRect road_rect(surface_rect.width() / 2 - 300, 5, 600, 60);
+  QRect road_rect(surface_rect.width() / 2 - rect_width / 2, 5, rect_width, 60);
 
   p.setPen(QPen(QColor(255, 255, 255, 100), 1));
   //p.setBrush(QColor(0, 0, 0, 120));
   p.drawRoundedRect(road_rect, 6, 6);
 
-  p.setFont(InterFont(40, QFont::Normal));
   p.setPen(QColor(255, 255, 255, 200));
 
-  // Truncate long road names
-  QFontMetrics fm(p.font());
+  // Truncate long road names if they still don't fit
   QString truncated = fm.elidedText(road_name, Qt::ElideRight, road_rect.width() - 20);
   p.drawText(road_rect, Qt::AlignCenter, truncated);
 }
