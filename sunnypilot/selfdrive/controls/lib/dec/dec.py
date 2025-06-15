@@ -29,111 +29,57 @@ from opendbc.car import structs
 from numpy import interp
 from openpilot.common.params import Params
 from openpilot.common.realtime import DT_MDL
-from openpilot.sunnypilot.selfdrive.controls.lib.dec.constants import WMACConstants
-from openpilot.selfdrive.controls.lib.longitudinal_planner import ModelConstants
+from openpilot.sunnypilot.selfdrive.controls.lib.dec.constants import FilterConstants, SNG_State
 
 # d-e2e, from modeldata.h
 TRAJECTORY_SIZE = 33
-SET_MODE_TIMEOUT = 15
+
+HIGHWAY_CRUISE_KPH = 70
+
+STOP_AND_GO_FRAME = 60
+
+SET_MODE_TIMEOUT = 10
+
+V_ACC_MIN = 9.72
 
 
-class SmoothKalmanFilter:
-  """Enhanced Kalman filter with smoothing for stable decision making."""
+class FirstOrderFilter:
+  def __init__(self, alpha=0.2, initial_value=None):
+    """
+    First-order low-pass filter optimized for automotive control
 
-  def __init__(self, initial_value=0, measurement_noise=0.1, process_noise=0.01,
-               alpha=1.0, smoothing_factor=0.85):
-    self.x = initial_value
-    self.P = 1.0
-    self.R = measurement_noise
-    self.Q = process_noise
+    Args:
+        alpha: Filter coefficient (0 < alpha <= 1)
+              - Higher alpha = more responsive (less filtering)
+              - Lower alpha = more filtering (less responsive)
+        initial_value: Optional initial value to reduce startup transients
+    """
     self.alpha = alpha
-    self.smoothing_factor = smoothing_factor
-    self.initialized = False
-    self.history = []
-    self.max_history = 10
-    self.confidence = 0.0
+    self.filtered_value = initial_value
+    self.initialized = initial_value is not None
 
-  def add_data(self, measurement):
-    if len(self.history) >= self.max_history:
-      self.history.pop(0)
-    self.history.append(measurement)
-
+  def update(self, new_value: float) -> float:
+    """Update filter with new value and return filtered result"""
     if not self.initialized:
-      self.x = measurement
+      self.filtered_value = new_value
       self.initialized = True
-      self.confidence = 0.1
-      return
-
-    # Prediction
-    self.P = self.alpha * self.P + self.Q
-
-    # Update with smoothing
-    K = self.P / (self.P + self.R)
-    effective_K = K * (1.0 - self.smoothing_factor) + self.smoothing_factor * 0.1
-
-    innovation = measurement - self.x
-    self.x = self.x + effective_K * innovation
-    self.P = (1 - effective_K) * self.P
-
-    # Update confidence
-    if abs(innovation) < 0.1:
-      self.confidence = min(1.0, self.confidence + 0.05)
     else:
-      self.confidence = max(0.1, self.confidence - 0.02)
+      self.filtered_value = self.alpha * new_value + (1 - self.alpha) * self.filtered_value
 
-  def get_value(self):
-    return self.x if self.initialized else None
+    return self.filtered_value
 
-  def get_confidence(self):
-    return self.confidence
+  def get_value(self) -> float | None:
+    """Get current filtered value"""
+    return self.filtered_value
 
-  def reset_data(self):
-    self.initialized = False
-    self.history = []
-    self.confidence = 0.0
+  def reset(self, initial_value=None) -> None:
+    """Reset filter state with optional initial value"""
+    self.filtered_value = initial_value
+    self.initialized = initial_value is not None
 
-
-class ModeTransitionManager:
-  """Manages smooth transitions between driving modes with hysteresis."""
-
-  def __init__(self):
-    self.current_mode = 'acc'
-    self.mode_confidence = {'acc': 1.0, 'blended': 0.0}
-    self.transition_timeout = 0
-    self.min_mode_duration = 25
-    self.mode_duration = 0
-
-  def request_mode(self, mode: str, confidence: float = 1.0):
-    # Update confidence
-    self.mode_confidence[mode] = min(1.0, self.mode_confidence[mode] + 0.1 * confidence)
-    for m in self.mode_confidence:
-      if m != mode:
-        self.mode_confidence[m] = max(0.0, self.mode_confidence[m] - 0.05)
-
-    # Require minimum duration in current mode
-    if self.mode_duration < self.min_mode_duration:
-      return
-
-    # Hysteresis: higher threshold for mode changes
-    confidence_threshold = 0.7 if mode != self.current_mode else 0.3
-
-    if self.mode_confidence[mode] > confidence_threshold:
-      if mode != self.current_mode and self.transition_timeout == 0:
-        self.transition_timeout = SET_MODE_TIMEOUT
-        self.current_mode = mode
-        self.mode_duration = 0
-
-  def update(self):
-    if self.transition_timeout > 0:
-      self.transition_timeout -= 1
-    self.mode_duration += 1
-
-    # Gradual confidence decay
-    for mode in self.mode_confidence:
-      self.mode_confidence[mode] *= 0.98
-
-  def get_mode(self) -> str:
-    return self.current_mode
+  def set_alpha(self, new_alpha: float) -> None:
+    """Dynamically adjust filter responsiveness"""
+    self.alpha = max(0.01, min(1.0, new_alpha))  # Clamp between 0.01 and 1.0
 
 
 class DynamicExperimentalController:
@@ -143,67 +89,56 @@ class DynamicExperimentalController:
     self._params = params or Params()
     self._enabled: bool = self._params.get_bool("DynamicExperimentalControl")
     self._active: bool = False
+    self._mode: str = 'acc'
     self._frame: int = 0
-    self._urgency = 0.0
 
-    # Mode transition manager
-    self._mode_manager = ModeTransitionManager()
-
-    # Smooth filters for stable decision making
-    self._lead_filter = SmoothKalmanFilter(
-      measurement_noise=0.15,
-      process_noise=0.05,
-      alpha=1.02,
-      smoothing_factor=0.9
-    )
-
-    self._slow_down_filter = SmoothKalmanFilter(
-      measurement_noise=0.12,
-      process_noise=0.08,
-      alpha=1.03,
-      smoothing_factor=0.88
-    )
-
-    self._slowness_filter = SmoothKalmanFilter(
-      measurement_noise=0.1,
-      process_noise=0.06,
-      alpha=1.015,
-      smoothing_factor=0.92
-    )
-
-    self._curvature_filter = SmoothKalmanFilter(
-      measurement_noise=0.3,
-      process_noise=0.08,
-      alpha=1.03,
-      smoothing_factor=0.9
-    )
+    # Initialize first-order filters with tuned parameters and initial values
+    self._lead_filter = FirstOrderFilter(FilterConstants.LEAD_ALPHA, initial_value=0.0)
+    self._slow_down_filter = FirstOrderFilter(FilterConstants.SLOW_DOWN_ALPHA, initial_value=0.0)
+    self._slowness_filter = FirstOrderFilter(FilterConstants.SLOWNESS_ALPHA, initial_value=0.0)
+    self._dangerous_ttc_filter = FirstOrderFilter(FilterConstants.DANGEROUS_TTC_ALPHA, initial_value=10.0)  # Safe initial TTC
+    self._mpc_fcw_filter = FirstOrderFilter(FilterConstants.MPC_FCW_ALPHA, initial_value=0.0)
 
     # State variables
     self._has_lead_filtered = False
     self._has_slow_down = False
     self._has_slowness = False
-    self._high_curvature = False
-    self._curvature = 0.0
-    self._v_ego_kph = 0.0
-    self._v_cruise_kph = 0.0
-    self._has_standstill = False
+    self._has_dangerous_ttc = False
+    self._has_mpc_fcw = False
+    self._has_lead_filtered_prev = False
 
-    # Persistence counters for stability
-    self._standstill_count = 0
-    self._curve_count = 0
+    # Additional variables from original code
+    self._v_ego_kph = 0.
+    self._v_cruise_kph = 0.
+    self._has_lead = False
+    self._has_standstill = False
+    self._has_standstill_prev = False
+    self._sng_transit_frame = 0
+    self._sng_state = SNG_State.off
+    self._mpc_fcw_crash_cnt = 0
+    self._set_mode_timeout = 0
+    self._has_blinkers = False
+    self._has_nav_instruction = False
 
   def _read_params(self) -> None:
     if self._frame % int(1. / DT_MDL) == 0:
       self._enabled = self._params.get_bool("DynamicExperimentalControl")
 
   def mode(self) -> str:
-    return self._mode_manager.get_mode()
+    return str(self._mode)
 
   def enabled(self) -> bool:
     return self._enabled
 
   def active(self) -> bool:
     return self._active
+
+  def _adaptive_slowdown_threshold(self) -> float:
+    """
+    Adapts the slow-down threshold based on vehicle speed.
+    Uses interpolation from your original constants.
+    """
+    return float(interp(self._v_ego_kph, FilterConstants.SLOW_DOWN_BP, FilterConstants.SLOW_DOWN_DIST))
 
   def _update_calculations(self, sm: messaging.SubMaster) -> None:
     car_state = sm['carState']
@@ -212,193 +147,185 @@ class DynamicExperimentalController:
 
     self._v_ego_kph = car_state.vEgo * 3.6
     self._v_cruise_kph = car_state.vCruise
+    self._has_lead = lead_one.status
     self._has_standstill = car_state.standstill
+    self._has_blinkers = car_state.leftBlinker or car_state.rightBlinker
 
-    # Persistent standstill detection
-    if self._has_standstill:
-      self._standstill_count = min(20, self._standstill_count + 1)
+    # Lead detection with adaptive filtering
+    # Use higher alpha when speed is high for faster response
+    adaptive_lead_alpha = min(0.4, FilterConstants.LEAD_ALPHA + 0.002 * self._v_ego_kph)
+    self._lead_filter.set_alpha(adaptive_lead_alpha)
+    lead_filtered = self._lead_filter.update(float(lead_one.status))
+    self._has_lead_filtered = lead_filtered > FilterConstants.LEAD_PROB
+
+    # Slow down detection with speed-adaptive filtering
+    adaptive_threshold = self._adaptive_slowdown_threshold()
+    slow_down_trigger = (len(md.orientation.x) == len(md.position.x) == TRAJECTORY_SIZE and
+                         md.position.x[TRAJECTORY_SIZE - 1] < adaptive_threshold)
+
+    # More responsive filtering at higher speeds for safety
+    adaptive_slowdown_alpha = FilterConstants.SLOW_DOWN_ALPHA
+    if self._v_ego_kph > 50:  # Highway speeds
+      adaptive_slowdown_alpha = min(0.5, FilterConstants.SLOW_DOWN_ALPHA + 0.15)
+
+    self._slow_down_filter.set_alpha(adaptive_slowdown_alpha)
+    slow_down_filtered = self._slow_down_filter.update(float(slow_down_trigger))
+    self._has_slow_down = slow_down_filtered > FilterConstants.SLOW_DOWN_PROB
+
+    # Slowness detection - only when not at standstill
+    if not self._has_standstill:
+      slowness_trigger = self._v_ego_kph <= (self._v_cruise_kph * FilterConstants.SLOWNESS_CRUISE_OFFSET)
+      slowness_filtered = self._slowness_filter.update(float(slowness_trigger))
+      self._has_slowness = slowness_filtered > FilterConstants.SLOWNESS_PROB
     else:
-      self._standstill_count = max(0, self._standstill_count - 1)
+      # Reset slowness filter when at standstill
+      self._slowness_filter.reset(initial_value=0.0)
+      self._has_slowness = False
 
-    # Lead detection
-    self._lead_filter.add_data(float(lead_one.status))
-    lead_value = self._lead_filter.get_value() or 0.0
-    self._has_lead_filtered = lead_value > WMACConstants.LEAD_PROB
+    # Dangerous TTC detection with reset logic
+    if not self._has_lead_filtered and self._has_lead_filtered_prev:
+      self._dangerous_ttc_filter.reset(initial_value=10.0)  # Safe TTC when no lead
+      self._has_dangerous_ttc = False
+    elif self._has_lead and car_state.vEgo >= 0.01:
+      ttc = lead_one.dRel / car_state.vEgo
+      # Clamp TTC to reasonable range
+      ttc = max(0.1, min(15.0, ttc))
+      ttc_filtered = self._dangerous_ttc_filter.update(ttc)
+      self._has_dangerous_ttc = ttc_filtered <= FilterConstants.DANGEROUS_TTC
+    else:
+      self._has_dangerous_ttc = False
 
-    # Curvature detection i sware this does not work but oh well
-    self._calculate_curvature(md)
+    # MPC FCW detection with crash count
+    fcw_filtered = self._mpc_fcw_filter.update(float(self._mpc_fcw_crash_cnt > 0))
+    self._has_mpc_fcw = fcw_filtered > FilterConstants.MPC_FCW_PROB
 
-    # Slow down detection
-    self._calculate_slow_down(md)
+    # SNG (Stop and Go) state machine - unchanged from original
+    if self._has_standstill:
+      self._sng_state = SNG_State.stopped
+      self._sng_transit_frame = 0
+    else:
+      if self._sng_transit_frame == 0:
+        if self._sng_state == SNG_State.stopped:
+          self._sng_state = SNG_State.going
+          self._sng_transit_frame = STOP_AND_GO_FRAME
+        elif self._sng_state == SNG_State.going:
+          self._sng_state = SNG_State.off
+      elif self._sng_transit_frame > 0:
+        self._sng_transit_frame -= 1
 
-    # Slowness detection
-    if not (self._standstill_count > 5) and not self._has_slow_down:
-      current_slowness = float(self._v_ego_kph <= (self._v_cruise_kph * WMACConstants.SLOWNESS_CRUISE_OFFSET))
-      self._slowness_filter.add_data(current_slowness)
-      slowness_value = self._slowness_filter.get_value() or 0.0
-
-      # Hysteresis for slowness
-      threshold = WMACConstants.SLOWNESS_PROB * (0.8 if self._has_slowness else 1.1)
-      self._has_slowness = slowness_value > threshold
-
-  def _calculate_curvature(self, md): # someone help!!!
-    """Calculate path curvature for curve detection."""
-    if len(md.position.x) == len(md.position.y) == TRAJECTORY_SIZE:
-      try:
-        curvatures = []
-        for i in range(3):
-          idx1 = 4 + i * 2
-          idx2 = 12 + i * 3
-          idx3 = 22 + i * 2
-
-          if idx3 < TRAJECTORY_SIZE:
-            v1x = md.position.x[idx2] - md.position.x[idx1]
-            v1y = md.position.y[idx2] - md.position.y[idx1]
-            v2x = md.position.x[idx3] - md.position.x[idx2]
-            v2y = md.position.y[idx3] - md.position.y[idx2]
-
-            mag1 = (v1x**2 + v1y**2)**0.5
-            mag2 = (v2x**2 + v2y**2)**0.5
-
-            if mag1 > 0.5 and mag2 > 0.5:
-              dot_product = v1x * v2x + v1y * v2y
-              cos_angle = np.clip(dot_product / (mag1 * mag2), -1.0, 1.0)
-              angle = np.arccos(cos_angle)
-              curvature = angle / ((mag1 + mag2) / 2)
-              curvatures.append(curvature)
-
-        if curvatures:
-          avg_curvature = np.mean(curvatures)
-          self._curvature_filter.add_data(avg_curvature)
-          self._curvature = self._curvature_filter.get_value() or 0.0
-
-          # Speed-adaptive curve threshold
-          curve_threshold = 0.04 + (self._v_ego_kph / 1000.0)
-
-          if self._curvature > curve_threshold:
-            self._curve_count = min(8, self._curve_count + 1)
-          else:
-            self._curve_count = max(0, self._curve_count - 1)
-
-          self._high_curvature = self._curve_count > 3
-
-      except Exception:
-        pass
-
-  def _calculate_slow_down(self, md):
-    """Calculate urgency based on trajectory endpoint vs expected distance."""
-
-    # Reset to safe defaults
-    urgency = 0.0
-    self._endpoint_x = float('inf')
-
-    # Need valid position data
-    if not len(md.position.x): # == TRAJECTORY_SIZE:
-      self._slow_down_filter.add_data(urgency)
-      urgency_filtered = self._slow_down_filter.get_value() or 0.0
-      self._has_slow_down = urgency_filtered > WMACConstants.SLOW_DOWN_PROB
-      self._urgency = urgency_filtered
-      return
-
-    # Get actual trajectory endpoint
-    endpoint_x = md.position.x[-1] # can be any legnth now ?
-    self._endpoint_x = endpoint_x
-
-    # Get expected distance based on current speed using tuned constants
-    expected_distance = interp(self._v_ego_kph,
-                               WMACConstants.SLOW_DOWN_BP,
-                               WMACConstants.SLOW_DOWN_DIST)
-
-    # Calculate urgency based on trajectory shortage
-    if endpoint_x < expected_distance:
-      shortage = expected_distance - endpoint_x
-      shortage_ratio = shortage / expected_distance
-
-      # Base urgency on shortage ratio
-      urgency = min(1.0, shortage_ratio * 2.0)
-
-      # Increase urgency for very short trajectories (imminent stops)
-      critical_distance = expected_distance * 0.4  # 40% of expected
-      if endpoint_x < critical_distance:
-        urgency = min(1.0, urgency * 1.5)
-
-      # Speed-based urgency adjustment
-      # Higher speeds need more attention when trajectory is short
-      if self._v_ego_kph > 30.0:
-        speed_factor = 1.0 + (self._v_ego_kph - 30.0) / 100.0
-        urgency = min(1.0, urgency * speed_factor)
-
-    # Apply smoothing filter
-    self._slow_down_filter.add_data(urgency)
-    urgency_filtered = self._slow_down_filter.get_value() or 0.0
-
-    # Update state
-    self._has_slow_down = urgency_filtered > WMACConstants.SLOW_DOWN_PROB
-    self._urgency = urgency_filtered
+    # Update previous values
+    self._has_standstill_prev = self._has_standstill
+    self._has_lead_filtered_prev = self._has_lead_filtered
 
   def _radarless_mode(self) -> None:
-    """Radarless mode decision logic."""
-
-    # Standstill: use blended
-    if self._standstill_count > 3:
-      self._mode_manager.request_mode('blended', confidence=0.9)
+    # when mpc fcw crash prob is high
+    # use blended to slow down quickly
+    if self._has_mpc_fcw:
+      self._set_mode('blended')
       return
 
-    # Slow down scenarios: use blended
+    # Nav enabled and distance to upcoming turning is 300 or below
+    # if self._has_nav_instruction:
+    #  self._set_mode('blended')
+    #  return
+
+    # when blinker is on and speed is driving below V_ACC_MIN: blended
+    # we don't want it to switch mode at higher speed, blended may trigger hard brake
+    # if self._has_blinkers and self._v_ego_kph < V_ACC_MIN:
+    #  self._set_mode('blended')
+    #  return
+
+    # when at highway cruise and SNG: blended
+    # ensuring blended mode is used because acc is bad at catching SNG lead car
+    # especially those who accel very fast and then brake very hard.
+    # if self._sng_state == SNG_State.going and self._v_cruise_kph >= V_ACC_MIN:
+    #  self._set_mode('blended')
+    #  return
+
+    # when standstill: blended
+    # in case of lead car suddenly move away under traffic light, acc mode won't brake at traffic light.
+    if self._has_standstill:
+      self._set_mode('blended')
+      return
+
+    # when detecting slow down scenario: blended
+    # e.g. traffic light, curve, stop sign etc.
     if self._has_slow_down:
-      confidence = min(1.0, self._urgency * 1.2)
-      self._mode_manager.request_mode('blended', confidence=confidence)
+      self._set_mode('blended')
       return
 
-    # High curvature at speed: use blended
-    if self._high_curvature and self._v_ego_kph > 40.0:
-      confidence = min(1.0, self._curvature * 15.0)
-      self._mode_manager.request_mode('blended', confidence=confidence)
+    # when detecting lead slow down: blended
+    # use blended for higher braking capability
+    if self._has_dangerous_ttc:
+      self._set_mode('blended')
       return
 
-    # Driving slow: use ACC (but not if actively slowing down)
-    if self._has_slowness and not self._has_slow_down:
-      self._mode_manager.request_mode('acc', confidence=0.8)
+    # car driving at speed lower than set speed: acc
+    if self._has_slowness:
+      self._set_mode('acc')
       return
 
-    # Default: ACC
-    self._mode_manager.request_mode('acc', confidence=0.7)
+    self._set_mode('acc')
 
   def _radar_mode(self) -> None:
-    """Simplified radar mode: lead + not standstill = ACC always."""
-
-    # If lead detected and not in standstill: always use ACC
-    if self._has_lead_filtered and not (self._standstill_count > 3):
-      self._mode_manager.request_mode('acc', confidence=1.0)
+    # when mpc fcw crash prob is high
+    # use blended to slow down quickly
+    if self._has_mpc_fcw:
+      self._set_mode('blended')
       return
 
-    # Standstill: use blended
-    if self._standstill_count > 3:
-      self._mode_manager.request_mode('blended', confidence=0.9)
+    # If there is a filtered lead, the vehicle is not in standstill, and the lead vehicle's yRel meets the condition,
+    if self._has_lead_filtered and not self._has_standstill:
+      self._set_mode('acc')
       return
 
-    # Slow down scenarios: use blended
+    # when blinker is on and speed is driving below V_ACC_MIN: blended
+    # we don't want it to switch mode at higher speed, blended may trigger hard brake
+    # if self._has_blinkers and self._v_ego_kph < V_ACC_MIN:
+    #  self._set_mode('blended')
+    #  return
+
+    # when standstill: blended
+    # in case of lead car suddenly move away under traffic light, acc mode won't brake at traffic light.
+    if self._has_standstill:
+      self._set_mode('blended')
+      return
+
+    # when detecting slow down scenario: blended
+    # e.g. traffic light, curve, stop sign etc.
     if self._has_slow_down:
-      confidence = min(1.0, self._urgency * 1.1)
-      self._mode_manager.request_mode('blended', confidence=confidence)
+      self._set_mode('blended')
       return
 
-    # High curvature at speed: use blended
-    if self._high_curvature and self._v_ego_kph > 45.0:
-      confidence = min(1.0, self._curvature * 12.0)
-      self._mode_manager.request_mode('blended', confidence=confidence)
+    # car driving at speed lower than set speed: acc
+    if self._has_slowness:
+      self._set_mode('acc')
       return
 
-    # Driving slow: use ACC (but not if actively slowing down)
-    if self._has_slowness and not self._has_slow_down:
-      self._mode_manager.request_mode('acc', confidence=0.8)
-      return
+    # Nav enabled and distance to upcoming turning is 300 or below
+    # if self._has_nav_instruction:
+    #  self._set_mode('blended')
+    #  return
 
-    # Default: ACC
-    self._mode_manager.request_mode('acc', confidence=0.7)
+    self._set_mode('acc')
+
+  def set_mpc_fcw_crash_cnt(self) -> None:
+    self._mpc_fcw_crash_cnt = self._mpc.crash_cnt
+
+  def _set_mode(self, mode: str) -> None:
+    if self._set_mode_timeout == 0:
+      self._mode = mode
+      if mode == 'blended':
+        self._set_mode_timeout = SET_MODE_TIMEOUT
+
+    if self._set_mode_timeout > 0:
+      self._set_mode_timeout -= 1
 
   def update(self, sm: messaging.SubMaster) -> None:
     self._read_params()
+
+    self.set_mpc_fcw_crash_cnt()
+
     self._update_calculations(sm)
 
     if self._CP.radarUnavailable:
@@ -406,6 +333,6 @@ class DynamicExperimentalController:
     else:
       self._radar_mode()
 
-    self._mode_manager.update()
     self._active = sm['selfdriveState'].experimentalMode and self._enabled
+
     self._frame += 1
