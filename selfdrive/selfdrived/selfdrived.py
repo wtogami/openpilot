@@ -88,7 +88,7 @@ class SelfdriveD(CruiseHelper):
                                    'carOutput', 'driverMonitoringState', 'longitudinalPlan', 'livePose', 'liveDelay',
                                    'managerState', 'liveParameters', 'radarState', 'liveTorqueParameters',
                                    'controlsState', 'carControl', 'driverAssistance', 'alertDebug', 'userFlag'] + \
-                                   self.camera_packets + self.sensor_packets + self.gps_packets,
+                                   self.camera_packets + self.sensor_packets + self.gps_packets + ["longitudinalPlanSP"],
                                   ignore_alive=ignore, ignore_avg_freq=ignore,
                                   ignore_valid=ignore, frequency=int(1/DT_CTRL))
 
@@ -132,6 +132,7 @@ class SelfdriveD(CruiseHelper):
     nvme_expected = os.path.exists('/dev/nvme0n1') or (not os.path.isfile("/persist/comma/living-in-the-moment"))
     if HARDWARE.get_device_type() == 'tici' and nvme_expected:
       self.ignored_processes = {'loggerd', }
+    self.ignored_processes.update({'mapd'})
 
     # Determine startup event
     self.startup_event = EventName.startup if build_metadata.openpilot.comma_remote and build_metadata.tested_channel else EventName.startupMaster
@@ -196,6 +197,7 @@ class SelfdriveD(CruiseHelper):
 
     if not self.CP.notCar:
       self.events.add_from_msg(self.sm['driverMonitoringState'].events)
+      self.events_sp.add_from_msg(self.sm['longitudinalPlanSP'].events)
 
     # Add car events, ignore if CAN isn't valid
     if CS.canValid:

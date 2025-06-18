@@ -5,7 +5,7 @@ import signal
 import sys
 import traceback
 
-from cereal import log
+from cereal import log, custom
 import cereal.messaging as messaging
 import openpilot.system.sentry as sentry
 from openpilot.common.params import Params, ParamKeyType
@@ -69,6 +69,22 @@ def manager_init() -> None:
     ("HkgTuningAngleMaxTorque", "250"),
     ("HkgTuningOverridingCycles", "17"),
     ("HkgAngleLiveTuning", "0"),
+    ("VisionTurnSpeedControl", "1"),
+
+    ("SpeedLimitControl", "0"),
+    ("SpeedLimitControlPolicy", "3"),
+    ("SpeedLimitEngageType", "0"),
+    ("SpeedLimitOffsetType", "0"),
+    ("SpeedLimitValueOffset", "0"),
+    ("SpeedLimitWarningType", "0"),
+    ("SpeedLimitWarningOffsetType", "0"),
+    ("SpeedLimitWarningValueOffset", "0"),
+    ("ToyotaAutoHold", "0"),
+    ("ToyotaEnhancedBsm", "0"),
+    ("ToyotaTSS2Long", "0"),
+    #("AccelPersonality", str(custom.LongitudinalPlanSP.AccelerationPersonality.stock)),
+    ("ToyotaDriveMode", "0"),
+    #("DynamicPersonality", "0"),
   ]
 
   # device boot mode

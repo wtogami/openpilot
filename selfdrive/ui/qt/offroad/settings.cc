@@ -41,6 +41,34 @@ TogglesPanel::TogglesPanel(SettingsWindow *parent) : ListWidget(parent) {
       false,
     },
     {
+      "ToyotaAutoHold",
+      tr("Toyota: Auto Brake Hold"),
+      tr("umm auto brake hold?"),
+      "../assets/offroad/icon_blank.png",
+      false,
+    },
+    {
+      "ToyotaEnhancedBsm",
+      tr("Toyota: Enhanced BSM"),
+      tr("like blind spot monitoring but better?"),
+      "../assets/offroad/icon_blank.png",
+      false,
+    },
+    {
+      "ToyotaTSS2Long",
+      tr("Toyota: custom tune"),
+      tr("idk something gas and brake"),
+      "../assets/offroad/icon_blank.png",
+      false,
+    },
+    {
+      "ToyotaDriveMode",
+      tr("Enable Toyota Drive Mode Button"),
+      tr("Sunnypilot will link the Acceleration Personality to the car's physical drive mode selector.\nReboot Required."),
+      "../assets/offroad/icon_blank.png",
+      false,
+    },
+    {
       "DisengageOnAccelerator",
       tr("Disengage on Accelerator Pedal"),
       tr("When enabled, pressing the accelerator pedal will disengage sunnypilot."),
@@ -86,6 +114,17 @@ TogglesPanel::TogglesPanel(SettingsWindow *parent) : ListWidget(parent) {
                                           "../assets/icons/speed_limit.png",
                                           longi_button_texts);
 
+  // accel controller
+  /*
+  std::vector<QString> accel_personality_texts{tr("Sport"), tr("Normal"), tr("Eco"), tr("Stock")};
+  accel_personality_setting = new ButtonParamControl("AccelPersonality", tr("Acceleration Personality"),
+                                          tr("Normal is recommended. In sport mode, sunnypilot will provide aggressive acceleration for a dynamic driving experience. "
+                                             "In eco mode, sunnypilot will apply smoother and more relaxed acceleration. On supported cars, you can cycle through these "
+                                             "acceleration personality within Onroad Settings on the driving screen."),
+                                          "",
+                                          accel_personality_texts);
+  accel_personality_setting->showDescription();
+  */
   // set up uiState update for personality setting
   QObject::connect(uiState(), &UIState::uiUpdate, this, &TogglesPanel::updateState);
 
@@ -113,6 +152,7 @@ TogglesPanel::TogglesPanel(SettingsWindow *parent) : ListWidget(parent) {
     // insert longitudinal personality after NDOG toggle
     if (param == "DisengageOnAccelerator") {
       addItem(long_personality_setting);
+      //addItem(accel_personality_setting);
     }
   }
 
@@ -133,6 +173,15 @@ void TogglesPanel::updateState(const UIState &s) {
     }
     uiState()->scene.personality = personality;
   }
+  /*
+  if (sm.updated("longitudinalPlanSP")) {
+    auto accel_personality = sm["longitudinalPlanSP"].getLongitudinalPlanSP().getAccelPersonality();
+    if (accel_personality != s.scene.accel_personality && s.scene.started && isVisible()) {
+      accel_personality_setting->setCheckedButton(static_cast<int>(accel_personality));
+    }
+    uiState()->scene.accel_personality = accel_personality;
+  }
+  */
 }
 
 void TogglesPanel::expandToggleDescription(const QString &param) {
@@ -170,10 +219,12 @@ void TogglesPanel::updateToggles() {
       experimental_mode_toggle->setEnabled(true);
       experimental_mode_toggle->setDescription(e2e_description);
       long_personality_setting->setEnabled(true);
+      //accel_personality_setting->setEnabled(true);
     } else {
       // no long for now
       experimental_mode_toggle->setEnabled(false);
       long_personality_setting->setEnabled(false);
+      //accel_personality_setting->setEnabled(true);
       params.remove("ExperimentalMode");
 
       const QString unavailable = tr("Experimental mode is currently unavailable on this car since the car's stock ACC is used for longitudinal control.");
