@@ -69,7 +69,7 @@ def manager_init() -> None:
     ("HkgTuningAngleMaxTorque", "250"),
     ("HkgTuningOverridingCycles", "17"),
     ("HkgAngleLiveTuning", "0"),
-    ("VisionTurnSpeedControl", "1"),
+    ("VisionTurnSpeedControl", "0"),
 
     ("SpeedLimitControl", "0"),
     ("SpeedLimitControlPolicy", "3"),
