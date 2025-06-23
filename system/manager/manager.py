@@ -80,6 +80,11 @@ def manager_init() -> None:
     ("ToyotaAutoHold", "0"),
     ("ToyotaEnhancedBsm", "0"),
     ("ToyotaTSS2Long", "0"),
+    ("HkgTuningAngleSmoothingFactor", "0"),
+    ("HkgTuningAngleMinTorque", "25"),
+    ("HkgTuningAngleMaxTorque", "250"),
+    ("HkgTuningOverridingCycles", "17"),
+    ("HkgAngleLiveTuning", "0"),
   ]
 
   # device boot mode
