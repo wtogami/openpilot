@@ -84,6 +84,12 @@ def manager_init() -> None:
     ("VibePersonalityEnabled", "0"),
     ("VibeAccelPersonalityEnabled", "0"),
     ("VibeFollowPersonalityEnabled", "0"),
+    ("EnableHkgTuningAngleSmoothingFactor", "1"),
+    ("HkgTuningAngleMinTorqueReductionGain", "10"),
+    ("HkgTuningAngleActiveTorqueReductionGain", "60"),
+    ("HkgTuningAngleMaxTorqueReductionGain", "100"),
+    ("HkgTuningOverridingCycles", "17"),
+    ("HkgAngleLiveTuning", "0"),
   ]
 
   # device boot mode

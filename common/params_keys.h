@@ -217,4 +217,12 @@ inline static std::unordered_map<std::string, uint32_t> keys = {
     {"VibePersonalityEnabled", PERSISTENT},
     {"VibeAccelPersonalityEnabled", PERSISTENT},
     {"VibeFollowPersonalityEnabled", PERSISTENT},
+    // Tuning keys
+    {"EnableHkgTuningAngleSmoothingFactor", PERSISTENT | BACKUP},
+    {"HkgTuningAngleMinTorqueReductionGain", PERSISTENT | BACKUP},
+    {"HkgTuningAngleMaxTorqueReductionGain", PERSISTENT | BACKUP},
+    {"HkgTuningAngleActiveTorqueReductionGain", PERSISTENT | BACKUP},
+    {"HkgTuningOverridingCycles", PERSISTENT | BACKUP},
+    {"HkgAngleLiveTuning", CLEAR_ON_MANAGER_START}
+    
 };
