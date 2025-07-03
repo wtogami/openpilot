@@ -16,7 +16,7 @@ LongPersonality = log.LongitudinalPersonality
 MAX_ACCEL_PROFILES = {
   LongPersonality.relaxed:    [2.00, 2.00, 1.72, 0.83, .572, .455, .365, .32, .10],  # eco-like
   LongPersonality.standard:   [2.00, 2.00, 1.84, 1.00, .64,  .55, .42, .37, .15],   # normal
-  LongPersonality.aggressive: [2.00, 2.00, 1.92, 1.25, .78,  .67, .50, .43, .20],   # sport-like
+  LongPersonality.aggressive: [2.00, 2.00, 1.92, 1.25, .78,  .70, .53, .46, .25],   # sport-like
 }
 MAX_ACCEL_BREAKPOINTS = [0., 7., 9., 11., 16., 20., 25., 30., 55.]
 
@@ -31,15 +31,15 @@ MIN_ACCEL_BREAKPOINTS =       [0.,       2.0,     8.,     13.,    22.2, 40.]
 FOLLOW_DISTANCE_PROFILES = {
   LongPersonality.relaxed: {
     'x_vel':  [0.,   4.9,  5.0, 19.7, 22.2, 40.],
-    'y_dist': [1.10, 1.10, 1.80, 1.80, 1.90, 1.90]
+    'y_dist': [1.10, 1.10, 1.60, 1.60, 1.75, 1.75]
   },
   LongPersonality.standard: {
     'x_vel':  [0.,   4.9,   5.,   14.,  14.5, 19.7, 22.2, 40.],
-    'y_dist': [1.05, 1.05, 1.31, 1.31, 1.37, 1.37, 1.45, 1.45]
+    'y_dist': [1.05, 1.05, 1.31, 1.31, 1.37, 1.37, 1.40, 1.40]
   },
   LongPersonality.aggressive: {
     'x_vel':  [0.,   4.9,    5.,   14.,  14.5, 19.7, 22.2, 40.],
-    'y_dist': [1.00, 1.00,  1.30, 1.30, 1.35, 1.35, 1.45, 1.45]
+    'y_dist': [1.00, 1.00,  1.25, 1.25, 1.30, 1.30, 1.35, 1.35]
   }
 }
 
