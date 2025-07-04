@@ -12,7 +12,7 @@ class LagdToggle:
   def __init__(self):
     self.params = Params()
     self.lag = 0.0
-    self.software_delay = 0.17
+    self.software_delay = 0.104
     self._last_desc = None
 
   def _maybe_update_desc(self, desc):
