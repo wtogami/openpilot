@@ -219,4 +219,12 @@ inline static std::unordered_map<std::string, uint32_t> keys = {
     {"SpeedLimitWarningType", PERSISTENT | BACKUP},
     {"SpeedLimitWarningOffsetType", PERSISTENT | BACKUP},
     {"SpeedLimitWarningValueOffset", PERSISTENT | BACKUP},
+    // Tuning keys
+    {"EnableHkgTuningAngleSmoothingFactor", PERSISTENT | BACKUP},
+    {"HkgTuningAngleMinTorqueReductionGain", PERSISTENT | BACKUP},
+    {"HkgTuningAngleMaxTorqueReductionGain", PERSISTENT | BACKUP},
+    {"HkgTuningAngleActiveTorqueReductionGain", PERSISTENT | BACKUP},
+    {"HkgTuningOverridingCycles", PERSISTENT | BACKUP},
+    {"HkgAngleLiveTuning", CLEAR_ON_MANAGER_START}
+    
 };

@@ -85,6 +85,12 @@ def manager_init() -> None:
     ("SpeedLimitWarningType", "0"),
     ("SpeedLimitWarningOffsetType", "0"),
     ("SpeedLimitWarningValueOffset", "0"),
+    ("EnableHkgTuningAngleSmoothingFactor", "1"),
+    ("HkgTuningAngleMinTorqueReductionGain", "10"),
+    ("HkgTuningAngleActiveTorqueReductionGain", "60"),
+    ("HkgTuningAngleMaxTorqueReductionGain", "100"),
+    ("HkgTuningOverridingCycles", "17"),
+    ("HkgAngleLiveTuning", "0"),
   ]
 
   # device boot mode
