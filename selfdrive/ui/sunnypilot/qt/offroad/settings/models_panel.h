@@ -66,6 +66,7 @@ private:
   ButtonControlSP *currentModelLblBtn;
   ParamControlSP *dynamicModeldOutputs;
   ParamControlSP *lagd_toggle_control;
+  OptionControlSP *delay_offset_control;
   OptionControlSP *delay_control;
   QProgressBar *supercomboProgressBar;
   QFrame *supercomboFrame;
