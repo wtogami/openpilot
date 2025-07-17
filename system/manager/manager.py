@@ -55,6 +55,7 @@ def manager_init() -> None:
     ("CustomAccLongPressIncrement", "5"),
     ("CustomAccShortPressIncrement", "1"),
     ("DeviceBootMode", "0"),
+    ("DisableUpdates", "0"),
     ("DynamicExperimentalControl", "0"),
     ("DynamicModeldOutputs", "0"),
     ("FastBootToggle", "0"),
