@@ -16,6 +16,7 @@ from openpilot.sunnypilot import PARAMS_UPDATE_PERIOD
 from openpilot.sunnypilot.livedelay.helpers import get_lat_delay
 from openpilot.sunnypilot.modeld.modeld_base import ModelStateBase
 from openpilot.sunnypilot.selfdrive.controls.lib.blinker_pause_lateral import BlinkerPauseLateral
+from openpilot.selfdrive.controls.lib.latcontrol_pid import LatControlPID
 from openpilot.sunnypilot.selfdrive.controls.lib.latcontrol_torque_v0 import LatControlTorque as LatControlTorqueV0
 
 
@@ -35,15 +36,23 @@ class ControlsExt(ModelStateBase):
     self.pm_services_ext = ['carControlSP']
 
   def initialize_lateral_control(self, lac, CI, dt):
-    enforce_torque_control = self.params.get_bool("EnforceTorqueControl")
-    torque_versions = self.params.get("TorqueControlTune")
-    if not enforce_torque_control:
-      return lac
+    lateral_control_method = int(self.params.get("LateralControlMethod") or 0)
 
-    if torque_versions == 0.0:  # v0
-      return LatControlTorqueV0(self.CP, self.CP_SP, CI, dt)
-    else:
-      return lac
+    if lateral_control_method == 1:  # PID
+      cp_pid = self.CP.as_builder()
+      cp_pid.lateralTuning.init('pid')
+      cp_pid.lateralTuning.pid.kpBP = [0.0]
+      cp_pid.lateralTuning.pid.kpV = [0.6]
+      cp_pid.lateralTuning.pid.kiBP = [0.0]
+      cp_pid.lateralTuning.pid.kiV = [0.1]
+      cp_pid.lateralTuning.pid.kf = 0.00007818594
+      return LatControlPID(cp_pid.as_reader(), self.CP_SP, CI, dt)
+    elif lateral_control_method == 2:  # Torque
+      torque_versions = self.params.get("TorqueControlTune")
+      if torque_versions == 0.0:  # v0
+        return LatControlTorqueV0(self.CP, self.CP_SP, CI, dt)
+
+    return lac
 
   def get_params_sp(self, sm: messaging.SubMaster) -> None:
     if time.monotonic() - self._param_update_time > PARAMS_UPDATE_PERIOD:

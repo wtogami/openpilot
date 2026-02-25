@@ -9,7 +9,7 @@ from enum import IntEnum
 
 from openpilot.selfdrive.ui.ui_state import ui_state
 from openpilot.system.ui.lib.multilang import tr
-from openpilot.system.ui.sunnypilot.widgets.list_view import toggle_item_sp, simple_button_item_sp, option_item_sp, LineSeparatorSP
+from openpilot.system.ui.sunnypilot.widgets.list_view import toggle_item_sp, simple_button_item_sp, option_item_sp, multiple_button_item_sp, LineSeparatorSP
 from openpilot.system.ui.widgets.scroller_tici import Scroller
 from openpilot.system.ui.widgets import Widget
 from openpilot.selfdrive.ui.sunnypilot.layouts.settings.steering_sub_layouts.lane_change_settings import LaneChangeSettingsLayout
@@ -81,10 +81,14 @@ class SteeringLayout(Widget):
       description=lambda: tr("Delay before lateral control resumes after the turn signal ends."),
       label_callback=lambda delay: f'{delay} {"s"}'
     )
-    self._torque_control_toggle = toggle_item_sp(
-      param="EnforceTorqueControl",
-      title=lambda: tr("Enforce Torque Lateral Control"),
-      description=lambda: tr("Enable this to enforce sunnypilot to steer with Torque lateral control."),
+    self._lateral_control_method = multiple_button_item_sp(
+      param="LateralControlMethod",
+      title=lambda: tr("Lateral Control Method"),
+      description=lambda: tr("Select the lateral control method. Default uses the car's built-in controller. "
+                              "PID uses angle-based control. Torque uses lateral acceleration-based control."),
+      buttons=[lambda: tr("Default"), lambda: tr("PID"), lambda: tr("Torque")],
+      button_width=250,
+      callback=self._on_lateral_control_changed,
     )
     self._torque_customization_button = simple_button_item_sp(
       button_text=lambda: tr("Customize Torque Params"),
@@ -107,12 +111,15 @@ class SteeringLayout(Widget):
       self._blinker_control_options,
       self._blinker_reengage_delay,
       LineSeparatorSP(40),
-      self._torque_control_toggle,
+      self._lateral_control_method,
       self._torque_customization_button,
       LineSeparatorSP(40),
       self._nnlc_toggle,
     ]
     return items
+
+  def _on_lateral_control_changed(self, index):
+    ui_state.params.put_bool("EnforceTorqueControl", index == 2)
 
   def _set_current_panel(self, panel: PanelType):
     self._current_panel = panel
@@ -127,11 +134,13 @@ class SteeringLayout(Widget):
 
       if ui_state.CP.steerControlType == car.CarParams.SteerControlType.angle:
         ui_state.params.remove("EnforceTorqueControl")
+        ui_state.params.remove("LateralControlMethod")
         ui_state.params.remove("NeuralNetworkLateralControl")
         torque_allowed = False
     else:
       self._mads_toggle.set_description(f"<b>{self._mads_check_compat_desc}</b><br><br>{self._mads_base_desc}")
       ui_state.params.remove("EnforceTorqueControl")
+      ui_state.params.remove("LateralControlMethod")
       ui_state.params.remove("NeuralNetworkLateralControl")
       torque_allowed = False
 
@@ -140,11 +149,12 @@ class SteeringLayout(Widget):
     self._blinker_control_options.set_visible(self._blinker_control_toggle.action_item.get_state())
     self._blinker_reengage_delay.set_visible(self._blinker_control_toggle.action_item.get_state())
 
-    enforce_torque_enabled = self._torque_control_toggle.action_item.get_state()
-    nnlc_enabled = self._nnlc_toggle.action_item.get_state()
-    self._nnlc_toggle.action_item.set_enabled(ui_state.is_offroad() and torque_allowed and not enforce_torque_enabled)
-    self._torque_control_toggle.action_item.set_enabled(ui_state.is_offroad() and torque_allowed and not nnlc_enabled)
-    self._torque_customization_button.action_item.set_enabled(self._torque_control_toggle.action_item.get_state())
+    lateral_method = self._lateral_control_method.action_item.selected_button
+    enforce_torque_enabled = lateral_method == 2
+    enforce_pid_enabled = lateral_method == 1
+    self._lateral_control_method.action_item.set_enabled(ui_state.is_offroad() and torque_allowed)
+    self._nnlc_toggle.action_item.set_enabled(ui_state.is_offroad() and torque_allowed and not enforce_torque_enabled and not enforce_pid_enabled)
+    self._torque_customization_button.action_item.set_enabled(enforce_torque_enabled)
 
   def _render(self, rect):
     if self._current_panel == PanelType.LANE_CHANGE:
